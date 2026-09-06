@@ -1,0 +1,2 @@
+[functions.market-intel]
+verify_jwt = false
