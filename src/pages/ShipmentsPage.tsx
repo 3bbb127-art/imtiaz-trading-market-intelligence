@@ -16,7 +16,7 @@ const UNITS = ['kg', 'ton', 'mt', 'bag', 'litre', 'lb'];
 const EMPTY_FORM = {
   shipment_id: '', origin: '', destination: '', commodity: '',
   quantity: '', unit: 'ton', departure_date: '', expected_arrival: '',
-  actual_arrival: '', status: 'Planned', notes: '',
+  actual_arrival: '', status: 'Planned', notes: '', source: '',
 };
 
 export function ShipmentsPage({ lang }: { lang: Language }) {
@@ -50,6 +50,7 @@ export function ShipmentsPage({ lang }: { lang: Language }) {
       expected_arrival: form.expected_arrival || null,
       actual_arrival: form.actual_arrival || null,
       status: form.status,
+      source: form.source || null,
       notes: form.notes || null,
     };
     await shipmentsProvider.insert(row);
@@ -129,6 +130,7 @@ export function ShipmentsPage({ lang }: { lang: Language }) {
                   <th className="px-4 py-2 font-medium">{t(lang, 'expected_arrival')}</th>
                   <th className="px-4 py-2 font-medium">{t(lang, 'actual_arrival')}</th>
                   <th className="px-4 py-2 font-medium">{t(lang, 'status')}</th>
+                  <th className="px-4 py-2 font-medium">Source</th>
                   <th className="px-4 py-2 font-medium"></th>
                 </tr>
               </thead>
@@ -143,6 +145,7 @@ export function ShipmentsPage({ lang }: { lang: Language }) {
                     <td className="px-4 py-2 text-slate-500">{r.expected_arrival ? String(r.expected_arrival).slice(0, 10) : '—'}</td>
                     <td className="px-4 py-2 text-slate-500">{r.actual_arrival ? String(r.actual_arrival).slice(0, 10) : '—'}</td>
                     <td className="px-4 py-2"><Badge className={shipmentStatusColor(r.status)}>{r.status}</Badge></td>
+                    <td className="px-4 py-2 text-slate-500">{r.source ?? '—'}</td>
                     <td className="px-4 py-2">
                       <button onClick={() => remove(r.id)} className="text-slate-400 hover:text-rose-600"><Trash2 className="h-4 w-4" /></button>
                     </td>
@@ -171,6 +174,7 @@ export function ShipmentsPage({ lang }: { lang: Language }) {
             {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
           </Select></Field>
           <div className="sm:col-span-2">
+            <Field label="Source"><Input value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} placeholder="Railway record, warehouse log, trader" /></Field>
             <Field label={t(lang, 'notes')}><Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder={t(lang, 'notes_placeholder')} /></Field>
           </div>
         </div>

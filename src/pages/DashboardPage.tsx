@@ -9,17 +9,21 @@ import { Card, SectionTitle, Badge, StatCard, EmptyState, Button } from '@/compo
 import { type Language, t } from '@/lib/i18n';
 import {
   storedMarketDataProvider, storedFxProvider, reportsProvider, alertsProvider,
+  researchMemoryProvider, stockProvider, shipmentsProvider,
 } from '@/lib/providers';
 import {
   freshnessColor, confidenceColor, severityColor, classNames,
 } from '@/lib/format';
-import type { Alert, ReportRecord } from '@/lib/types';
+import type { Alert, ReportRecord, ResearchFindings, StockRecord, Shipment } from '@/lib/types';
 
 interface DashData {
   marketRows: Record<string, unknown>[];
   fxRows: { base_currency: string; quote_currency: string; rate: number; source?: string }[];
   reports: ReportRecord[];
   alerts: Alert[];
+  research: { findings?: ResearchFindings; recommendation?: string | null }[];
+  stock: StockRecord[];
+  shipments: Shipment[];
 }
 
 export function DashboardPage({ lang, goTo }: { lang: Language; goTo: (p: 'ask' | 'reports' | 'market_data') => void }) {
@@ -30,11 +34,14 @@ export function DashboardPage({ lang, goTo }: { lang: Language; goTo: (p: 'ask' 
     let alive = true;
     (async () => {
       setLoading(true);
-      const [m, f, r, a] = await Promise.all([
+      const [m, f, r, a, r2, s2, sh2] = await Promise.all([
         storedMarketDataProvider.listRecent(20),
         storedFxProvider.listRecent(10),
         reportsProvider.listRecent(5),
         alertsProvider.listActive(),
+        researchMemoryProvider.listRecent(1),
+        stockProvider.listRecent(200),
+        shipmentsProvider.listRecent(200),
       ]);
       if (!alive) return;
       setData({
@@ -42,6 +49,9 @@ export function DashboardPage({ lang, goTo }: { lang: Language; goTo: (p: 'ask' 
         fxRows: f.data as { base_currency: string; quote_currency: string; rate: number; source?: string }[],
         reports: r.data as ReportRecord[],
         alerts: a.data as Alert[],
+        research: r2.data as { findings?: ResearchFindings; recommendation?: string | null }[],
+        stock: s2.data,
+        shipments: sh2.data,
       });
       setLoading(false);
     })();
@@ -58,7 +68,7 @@ export function DashboardPage({ lang, goTo }: { lang: Language; goTo: (p: 'ask' 
   const alerts = data?.alerts ?? [];
 
   const commodities = [...new Set(rows.map((r) => r.commodity).filter(Boolean))] as string[];
-  const countries = [...new Set(rows.map((r) => r.country).filter(Boolean))] as string[];
+  const markets = [...new Set(rows.map((r) => r.market || r.city || r.country).filter(Boolean))] as string[];
 
   return (
     <div className="space-y-6">
@@ -69,17 +79,34 @@ export function DashboardPage({ lang, goTo }: { lang: Language; goTo: (p: 'ask' 
         </Button>
       </div>
 
-      {rows.length === 0 && alerts.length === 0 && reports.length === 0 ? (
+      {rows.length === 0 && alerts.length === 0 && reports.length === 0 && (data?.research?.length ?? 0) === 0 && (data?.stock?.length ?? 0) === 0 && (data?.shipments?.length ?? 0) === 0 ? (
         <EmptyState title={t(lang, 'no_data')} subtitle={t(lang, 'landing_intro')} />
       ) : (
         <>
           {/* Top stats */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard label="Commodities Tracked" value={commodities.length} sub={commodities.slice(0, 3).join(', ')} />
-            <StatCard label="Markets" value={countries.length} sub={countries.slice(0, 3).join(', ')} accent="text-emerald-700" />
+            <StatCard label="Markets" value={markets.length} sub={markets.slice(0, 3).join(', ')} accent="text-emerald-700" />
             <StatCard label="FX Pairs" value={fx.length} sub={fx.slice(0, 2).map((f) => `${f.base_currency}/${f.quote_currency}`).join(', ')} />
             <StatCard label="Reports" value={reports.length} sub={reports[0]?.title} />
           </div>
+
+          {(() => {
+            const latest = data?.research?.[0]?.findings;
+            const stockRows = data?.stock ?? [];
+            const shipmentRows = data?.shipments ?? [];
+            const available = stockRows.filter((r) => r.available_stock != null).reduce((sum, r) => sum + (r.available_stock ?? 0), 0);
+            const incoming = shipmentRows.filter((r) => (r.status === 'In Transit' || r.status === 'Planned') && r.quantity != null).reduce((sum, r) => sum + (r.quantity ?? 0), 0);
+            const delayed = shipmentRows.filter((r) => r.status === 'Delayed').length;
+            return (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <StatCard label="Supply / Demand" value={latest ? `${latest.supply} / ${latest.demand}` : 'UNKNOWN'} sub="Latest agent finding" />
+                <StatCard label="Sentiment / Risk" value={latest ? `${latest.sentiment} / ${latest.forecast?.market_risk ?? 'UNKNOWN'}` : 'UNKNOWN'} sub="Latest agent finding" />
+                <StatCard label="Stock / Incoming" value={`${available.toLocaleString()} / ${incoming.toLocaleString()}`} sub={stockRows.length || shipmentRows.length ? `${stockRows.length} stock · ${shipmentRows.length} shipments` : 'No operational records'} accent="text-sky-700" />
+                <StatCard label="Recommendation" value={latest?.recommendation ?? 'UNKNOWN'} sub={latest?.forecast ? `Forecast ${latest.forecast.price_direction}` : (delayed > 0 ? `${delayed} delayed shipment(s)` : 'Latest agent finding')} accent="text-emerald-700" />
+              </div>
+            );
+          })()}
 
           <div className="grid gap-6 lg:grid-cols-3">
             {/* Alerts */}

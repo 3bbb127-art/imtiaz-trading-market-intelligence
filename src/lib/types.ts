@@ -56,6 +56,7 @@ export interface MarketData {
   export_status?: string | null;
   logistics_status?: string | null;
   competitor_info?: string | null;
+  trader_company?: string | null;
   notes?: string | null;
   data_status: DataStatus;
   confidence: Confidence;
@@ -326,6 +327,7 @@ export interface Shipment {
   actual_arrival?: string | null;
   status: string;
   notes?: string | null;
+  source?: string | null;
   created_at: string;
 }
 
@@ -400,19 +402,25 @@ export interface ResearchProviderResult {
   url: string;
   snippet: string;
   source_type: string;
+  data_status?: DataStatus;
+  confidence?: Confidence;
+  freshness?: Freshness;
 }
+
+export type ProviderStatus = 'OK' | 'ERROR' | 'NO_PROVIDER';
 
 export interface FxProviderResponse {
   rates: FxRate[];
   source: string;
-  status: string;
+  status: ProviderStatus;
   base: string;
+  message?: string;
 }
 
 export interface ResearchProviderResponse {
   query: string;
   results: ResearchProviderResult[];
   source: string;
-  status: string;
+  status: ProviderStatus;
   message?: string;
 }

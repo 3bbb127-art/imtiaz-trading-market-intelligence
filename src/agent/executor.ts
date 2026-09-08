@@ -115,7 +115,7 @@ export async function runAgent(command: string, opts: RunOptions = {}): Promise<
     researchResults: researchResp.results,
     stockRows,
     shipmentRows,
-    researchStatus: researchResp.status,
+    researchStatus: researchResp.status as EngineInput['researchStatus'],
     researchMessage: researchResp.message,
   });
   emit('Normalize & analyze', 'done', `Sentiment: ${findings.sentiment} | Recommendation: ${findings.recommendation}`);
@@ -138,7 +138,7 @@ export async function runAgent(command: string, opts: RunOptions = {}): Promise<
       researchResults: researchResp.results,
       stockRows,
       shipmentRows,
-      researchStatus: researchResp.status,
+      researchStatus: researchResp.status as EngineInput['researchStatus'],
       researchMessage: researchResp.message,
     }, findings);
   }

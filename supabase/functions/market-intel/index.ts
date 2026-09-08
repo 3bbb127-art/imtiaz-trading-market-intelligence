@@ -15,8 +15,9 @@
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
+  "Vary": "Origin",
 };
 
 interface FxRequest {
@@ -71,8 +72,20 @@ async function handleFx(req: Request): Promise<Response> {
   if (!body.base || typeof body.base !== "string") {
     return errorResponse("Missing 'base' currency", 400);
   }
-  const base = body.base.toUpperCase();
-  const targets = (body.targets ?? []).map((t) => t.toUpperCase());
+  const base = body.base.trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(base)) {
+    return errorResponse("Invalid base currency", 400);
+  }
+
+  const rawTargets = body.targets ?? [];
+  if (!Array.isArray(rawTargets)) {
+    return errorResponse("'targets' must be an array", 400);
+  }
+  const targets = rawTargets
+    .filter((t): t is string => typeof t === "string")
+    .map((t) => t.trim().toUpperCase())
+    .filter((t) => /^[A-Z]{3}$/.test(t))
+    .slice(0, 20);
 
   const url = `https://open.er-api.com/v6/latest/${base}`;
   let resp: Response;
@@ -135,11 +148,24 @@ async function handleResearch(req: Request): Promise<Response> {
     return errorResponse("Missing 'query'", 400);
   }
 
+  const query = body.query.trim();
+  if (query.length < 2) {
+    return errorResponse("Query is too short", 400);
+  }
+  if (query.length > 1000) {
+    return errorResponse("Query is too long", 400);
+  }
+
+  const requestedMaxResults = Number(body.max_results ?? 8);
+  const maxResults = Number.isFinite(requestedMaxResults)
+    ? Math.min(Math.max(Math.floor(requestedMaxResults), 1), 10)
+    : 8;
+
   const tavilyKey = Deno.env.get("TAVILY_API_KEY");
   if (!tavilyKey) {
     // No provider configured — return a clear envelope, never fabricate.
     return jsonResponse({
-      query: body.query,
+      query,
       results: [],
       source: "none",
       status: "NO_PROVIDER",
@@ -148,14 +174,13 @@ async function handleResearch(req: Request): Promise<Response> {
     }, 200);
   }
 
-  const maxResults = Math.min(body.max_results ?? 8, 10);
   try {
     const resp = await fetch("https://api.tavily.com/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         api_key: tavilyKey,
-        query: body.query,
+        query,
         max_results: maxResults,
         search_depth: "advanced",
       }),
@@ -173,13 +198,13 @@ async function handleResearch(req: Request): Promise<Response> {
       source_type: "web",
     }));
     return jsonResponse({
-      query: body.query,
+      query,
       results,
       source: "tavily",
       status: "OK",
     });
-  } catch (err) {
-    return errorResponse(`Research provider error: ${(err as Error).message}`, 502, {
+  } catch {
+    return errorResponse("Research provider error", 502, {
       provider: "tavily",
     });
   }
@@ -212,7 +237,7 @@ Deno.serve(async (req: Request) => {
       return await handleResearch(req);
     }
     return errorResponse("Unknown route: " + path, 404);
-  } catch (err) {
-    return errorResponse(`Unexpected error: ${(err as Error).message}`, 500);
+  } catch {
+    return errorResponse("Unexpected server error", 500);
   }
 });

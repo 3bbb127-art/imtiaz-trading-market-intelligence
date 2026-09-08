@@ -47,7 +47,8 @@ export function calculateImportCost(input: ImportCostInput): ImportCostResult {
     };
   }
 
-  lineItems.push({ label: `Purchase Price (${input.quantity} ${input.unit})`, amount: purchaseUsd, currency: totalCurrency });
+  const purchaseTotalUsd = purchaseUsd * input.quantity;
+  lineItems.push({ label: `Purchase Price (${input.quantity} ${input.unit})`, amount: purchaseTotalUsd, currency: totalCurrency });
 
   // Additive cost components — each entered by user, converted to USD
   const components: { label: string; value: number | null }[] = [

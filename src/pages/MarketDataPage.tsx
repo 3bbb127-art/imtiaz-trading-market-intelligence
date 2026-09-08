@@ -27,6 +27,7 @@ interface Row {
   demand?: string | null;
   stock?: string | null;
   competitor_info?: string | null;
+  trader_company?: string | null;
   buying_selling_behavior?: string | null;
   new_arrivals?: string | null;
   market_sentiment?: string | null;
@@ -41,7 +42,7 @@ interface Row {
 }
 
 const EMPTY = {
-  commodity: '', country: '', city: '', market: '', origin: '', destination: '',
+  commodity: '', country: '', city: '', market: '', origin: '', destination: '', trader_company: '',
   price: '', currency: 'USD', unit: 'kg', observation_date: new Date().toISOString().slice(0, 10),
   source: '', source_type: 'industry', supply: 'Normal', demand: 'Normal', stock: '',
   competitor_info: '', buying_selling_behavior: '', new_arrivals: '',
@@ -114,6 +115,7 @@ export function MarketDataPage({ lang }: { lang: Language }) {
                 <tr>
                   <th className="px-4 py-2 font-medium">Commodity</th>
                   <th className="px-4 py-2 font-medium">Location</th>
+                  <th className="px-4 py-2 font-medium">Trader / Company</th>
                   <th className="px-4 py-2 font-medium">Price</th>
                   <th className="px-4 py-2 font-medium">Supply</th>
                   <th className="px-4 py-2 font-medium">Demand</th>
@@ -130,6 +132,7 @@ export function MarketDataPage({ lang }: { lang: Language }) {
                   <tr key={r.id} className="border-t border-slate-100">
                     <td className="px-4 py-2 font-medium text-slate-700">{r.commodity}</td>
                     <td className="px-4 py-2 text-slate-600">{[r.city, r.country].filter(Boolean).join(', ')}</td>
+                    <td className="px-4 py-2 text-slate-500">{r.trader_company ?? '—'}</td>
                     <td className="px-4 py-2 text-slate-800">{r.price != null ? `${r.currency} ${r.price}/${r.unit}` : '—'}</td>
                     <td className="px-4 py-2 text-slate-600">{r.supply ?? '—'}</td>
                     <td className="px-4 py-2 text-slate-600">{r.demand ?? '—'}</td>
@@ -154,6 +157,7 @@ export function MarketDataPage({ lang }: { lang: Language }) {
           <Field label={t(lang, 'commodity')}><Input value={form.commodity} onChange={(e) => setForm({ ...form, commodity: e.target.value })} placeholder="Wheat" /></Field>
           <Field label={t(lang, 'commodity_category')}><Input value={commodityCategory(form.commodity || 'Other')} disabled /></Field>
           <Field label={t(lang, 'country')}><Input value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} placeholder="Afghanistan" /></Field>
+          <Field label="Trader / Company (optional)"><Input value={form.trader_company} onChange={(e) => setForm({ ...form, trader_company: e.target.value })} placeholder="Trader or company name" /></Field>
           <Field label={t(lang, 'city')}><Input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="Mazar-e-Sharif" /></Field>
           <Field label={t(lang, 'price')}><Input type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} placeholder="22" /></Field>
           <Field label={t(lang, 'currency')}><Input value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} placeholder="AFN" /></Field>
