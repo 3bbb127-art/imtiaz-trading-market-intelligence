@@ -218,12 +218,14 @@ function extractPricePointsFromResearch(input: EngineInput): PricePoint[] {
       const highStr = m[3];
       const high = highStr ? parseFloat(highStr.replace(/,/g, '')) : null;
       const price = high != null ? (low + high) / 2 : low;
-// Ignore numbers that describe price changes rather than the actual price.
-const contextBefore = lowerText.slice(Math.max(0, m.index - 100), m.index);
+// Ignore numbers that represent a price-change amount rather than the actual price.
+const contextBefore = lowerText.slice(Math.max(0, m.index - 180), m.index);
+
 const isPriceChangeAmount =
-  /\b(fell|fall|fallen|dropped|drop|declined|decline|decreased|decrease|reduced|reduction|down|decrease of|decline of|fall of|drop of)\b/i.test(
+  /\b(fell|fallen|dropped|declined|decreased|reduced|down)\b/i.test(
     contextBefore,
-  );
+  ) &&
+  !/\bto\s*$/i.test(contextBefore.trim());
 
 if (isPriceChangeAmount) continue;
       // Determine location from the research text itself — never from user's target city.
