@@ -24,7 +24,7 @@ import {
   stockProvider,
   shipmentsProvider,
 } from '../lib/providers';
-import { buildFindings, evaluationEngine, type RawMarketRow type EngineInput } from './engines';
+import { buildFindings, evaluationEngine, type RawMarketRow, type EngineInput } from './engines';
 import { generateReport } from './report';
 
 export interface RunOptions {
