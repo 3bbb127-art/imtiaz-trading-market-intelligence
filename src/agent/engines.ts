@@ -2093,27 +2093,6 @@ export function buildFindings(
     } Operational position: ${
       operational.summary
     }. Recommendation: ${rec}.`;
-
-  
-          operational.stock.available !=
-            null &&
-          operational.stock.in_transit !=
-            null &&
-          operational.stock.expected_incoming !=
-            null
-            ? `Operational stock: ${operational.stock.available.toLocaleString()} ${
-                operational.stock.unit ?? ''
-              } available, ${operational.stock.in_transit.toLocaleString()} ${
-                operational.stock.unit ?? ''
-              } in transit, ${operational.stock.expected_incoming.toLocaleString()} ${
-                operational.stock.unit ?? ''
-              } expected incoming.`
-            : 'Operational stock data is partially incomplete.'
-        )
-      : 'Operational stock: UNKNOWN — no stock records available.';
-
-  
-
   const fieldCompetitor =
     input.marketRows.find(
       (r) => r.competitor_info,
