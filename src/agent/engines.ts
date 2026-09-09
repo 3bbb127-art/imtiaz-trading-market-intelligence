@@ -459,19 +459,45 @@ function extractPricePointsFromResearch(
        * because the second number is the final market price.
        */
       const contextBefore = lowerText.slice(
-        Math.max(0, m.index - 180),
-        m.index,
-      );
+  Math.max(0, m.index - 220),
+  m.index,
+);
 
-      const isChangeAmountAtMatch =
-        /\b(?:fell|fallen|dropped|declined|decreased|reduced)\s+by(?:\s+(?:approximately|about))?\s*$/i.test(
-          contextBefore,
-        ) ||
-        /\bdown(?:\s+(?:by|approximately|about))?\s*$/i.test(
-          contextBefore,
-        );
+/*
+ * Reject numbers that are part of a price-change statement,
+ * not the actual market price.
+ *
+ * Examples to reject:
+ *   "fell by approximately USD 10 to USD 12/MT"
+ *   "dropped by USD 15 to USD 420/MT"
+ *   "down about USD 10 to USD 12/MT"
+ *
+ * In these constructions the extracted number after "to"
+ * can be a change/range artifact in scraped text and must
+ * not be promoted to a market PricePoint.
+ */
 
-      if (isChangeAmountAtMatch) continue;
+const currencyAmount =
+  '(?:usd|afn|pkr|inr|rub|eur|cny|vnd|thb|kzt|try|irr|aed)?\\s*\\d[\\d,]*(?:\\.\\d+)?';
+
+const isPriceChangeStatement =
+  new RegExp(
+    `\\b(?:fell|fallen|dropped|declined|decreased|reduced)\\b` +
+      `[^.]{0,120}\\bby\\b` +
+      `[^.]{0,80}${currencyAmount}\\s+to\\s*$`,
+    'i',
+  ).test(contextBefore) ||
+  new RegExp(
+    `\\bdown\\b` +
+      `[^.]{0,100}(?:approximately|approximately by|about|by)?\\s*` +
+      `${currencyAmount}\\s+to\\s*$`,
+    'i',
+  ).test(contextBefore) ||
+  /\b(?:fell|fallen|dropped|declined|decreased|reduced)\b[^.]{0,120}\bby\b[^.]{0,80}\bto\s*$/i.test(
+    contextBefore,
+  );
+
+if (isPriceChangeStatement) continue;
 
       // Use local context around the matched price instead of
       // the entire article when determining location.
