@@ -412,7 +412,7 @@ const KNOWN_CITIES: Record<string, string> = {
   'buenos aires': 'Buenos Aires',
 };
 
-const CITY_COUNTRIES: Record<string, string> = {
+
   kabul: 'Afghanistan',
   'mazar-e-sharif': 'Afghanistan',
   'mazar-i-sharif': 'Afghanistan',
@@ -684,11 +684,7 @@ function getUsdFxRate(
   };
 }
 
-function normalizeToUsdPerMt(
-  price: number | null,
-  currency: string | null,
-  unit: string | null,
-): number | null {
+
   if (
     price == null ||
     !currency ||
