@@ -99,15 +99,9 @@ export interface EngineInput {
   destination: string | null;
   city: string | null;
 
-  /**
-   * Comparison metadata is optional for backward compatibility.
-   */
   comparisonMarkets?: string[];
   comparisonContext?: string | null;
 
-  /**
-   * The executor can pass the objective explicitly.
-   */
   objective?: string;
 
   currencies: string[];
@@ -147,10 +141,6 @@ function normalizeText(value: unknown): string {
     .replace(/\s+/g, ' ');
 }
 
-function normalizeEntity(value: unknown): string {
-  return normalizeText(value);
-}
-
 function escapeRegex(value: string): string {
   return value.replace(
     /[.*+?^${}()|[\]\\]/g,
@@ -169,26 +159,22 @@ function clamp(
   );
 }
 
-function titleCase(value: string): string {
-  return value.replace(
-    /\b\w/g,
-    (char) => char.toUpperCase(),
-  );
-}
-
 function confidenceRank(
   confidence: Confidence,
 ): number {
-  return CONFIDENCE_RANK[
-    confidence
-  ] ?? 0;
+  return CONFIDENCE_RANK[confidence] ?? 0;
 }
 
-// -----------------------------------------------------------------------------
-// Comparison scope helpers
-// -----------------------------------------------------------------------------
+function isComparisonWorkflow(
+  input: EngineInput,
+): boolean {
+  return (
+    input.objective === 'compare' &&
+    (input.comparisonMarkets?.length ?? 0) >= 2
+  );
+}
 
-function getComparisonMarkets(
+function comparisonMarkets(
   input: EngineInput,
 ): string[] {
   return [
@@ -200,26 +186,17 @@ function getComparisonMarkets(
   ];
 }
 
-function isComparisonWorkflow(
-  input: EngineInput,
-): boolean {
-  return (
-    input.objective === 'compare' &&
-    getComparisonMarkets(input).length >= 2
-  );
-}
-
 function entityVariants(
   entity: string,
 ): string[] {
-  const normalized =
-    normalizeEntity(entity);
-
+  const normalized = normalizeText(entity);
   const variants = new Set<string>();
 
-  if (normalized) {
-    variants.add(normalized);
+  if (!normalized) {
+    return [];
   }
+
+  variants.add(normalized);
 
   if (normalized === 'russia') {
     variants.add('russian');
@@ -239,7 +216,6 @@ function entityVariants(
 
   if (normalized === 'united arab emirates') {
     variants.add('uae');
-    variants.add('emirates');
   }
 
   if (normalized === 'united kingdom') {
@@ -259,70 +235,289 @@ function entityMatchesText(
   entity: string,
   text: string,
 ): boolean {
-  const normalizedText =
-    normalizeEntity(text);
+  const normalized = normalizeText(text);
 
-  if (!normalizedText) {
+  if (!normalized) {
     return false;
   }
 
-  return entityVariants(entity).some(
-    (variant) => {
-      const pattern = new RegExp(
-        `\\b${escapeRegex(variant)}\\b`,
-        'i',
-      );
+  return entityVariants(entity).some((variant) => {
+    const pattern = new RegExp(
+      `\\b${escapeRegex(variant)}\\b`,
+      'i',
+    );
 
-      return pattern.test(
-        normalizedText,
-      );
-    },
-  );
+    return pattern.test(normalized);
+  });
 }
+
+// -----------------------------------------------------------------------------
+// Global market location dictionary
+// -----------------------------------------------------------------------------
+
+const KNOWN_COUNTRIES: Record<string, string> = {
+  afghanistan: 'Afghanistan',
+  albania: 'Albania',
+  algeria: 'Algeria',
+  argentina: 'Argentina',
+  armenia: 'Armenia',
+  australia: 'Australia',
+  austria: 'Austria',
+  azerbaijan: 'Azerbaijan',
+  bangladesh: 'Bangladesh',
+  belarus: 'Belarus',
+  belgium: 'Belgium',
+  brazil: 'Brazil',
+  bulgaria: 'Bulgaria',
+  cambodia: 'Cambodia',
+  canada: 'Canada',
+  chile: 'Chile',
+  china: 'China',
+  colombia: 'Colombia',
+  croatia: 'Croatia',
+  'czech republic': 'Czech Republic',
+  denmark: 'Denmark',
+  egypt: 'Egypt',
+  estonia: 'Estonia',
+  france: 'France',
+  georgia: 'Georgia',
+  germany: 'Germany',
+  greece: 'Greece',
+  hungary: 'Hungary',
+  india: 'India',
+  indonesia: 'Indonesia',
+  iran: 'Iran',
+  iraq: 'Iraq',
+  ireland: 'Ireland',
+  israel: 'Israel',
+  italy: 'Italy',
+  japan: 'Japan',
+  jordan: 'Jordan',
+  kazakhstan: 'Kazakhstan',
+  kenya: 'Kenya',
+  kuwait: 'Kuwait',
+  kyrgyzstan: 'Kyrgyzstan',
+  lebanon: 'Lebanon',
+  malaysia: 'Malaysia',
+  mexico: 'Mexico',
+  moldova: 'Moldova',
+  mongolia: 'Mongolia',
+  morocco: 'Morocco',
+  nepal: 'Nepal',
+  netherlands: 'Netherlands',
+  'new zealand': 'New Zealand',
+  nigeria: 'Nigeria',
+  norway: 'Norway',
+  oman: 'Oman',
+  pakistan: 'Pakistan',
+  philippines: 'Philippines',
+  poland: 'Poland',
+  portugal: 'Portugal',
+  qatar: 'Qatar',
+  romania: 'Romania',
+  russia: 'Russia',
+  'saudi arabia': 'Saudi Arabia',
+  serbia: 'Serbia',
+  singapore: 'Singapore',
+  'south africa': 'South Africa',
+  'south korea': 'South Korea',
+  spain: 'Spain',
+  'sri lanka': 'Sri Lanka',
+  sudan: 'Sudan',
+  sweden: 'Sweden',
+  switzerland: 'Switzerland',
+  syria: 'Syria',
+  tajikistan: 'Tajikistan',
+  thailand: 'Thailand',
+  tunisia: 'Tunisia',
+  turkey: 'Turkey',
+  turkmenistan: 'Turkmenistan',
+  ukraine: 'Ukraine',
+  'united arab emirates': 'United Arab Emirates',
+  'united kingdom': 'United Kingdom',
+  'united states': 'United States',
+  uzbekistan: 'Uzbekistan',
+  venezuela: 'Venezuela',
+  vietnam: 'Vietnam',
+  yemen: 'Yemen',
+  zambia: 'Zambia',
+  zimbabwe: 'Zimbabwe',
+  'european union': 'European Union',
+
+  usa: 'United States',
+  us: 'United States',
+  uae: 'United Arab Emirates',
+  uk: 'United Kingdom',
+};
+
+const KNOWN_CITIES: Record<string, string> = {
+  kabul: 'Kabul',
+  'mazar-e-sharif': 'Mazar-e-Sharif',
+  'mazar-i-sharif': 'Mazar-e-Sharif',
+  mazar: 'Mazar-e-Sharif',
+  herat: 'Herat',
+  kandahar: 'Kandahar',
+  jalalabad: 'Jalalabad',
+  kunduz: 'Kunduz',
+  karachi: 'Karachi',
+  lahore: 'Lahore',
+  islamabad: 'Islamabad',
+  peshawar: 'Peshawar',
+  delhi: 'Delhi',
+  'new delhi': 'New Delhi',
+  mumbai: 'Mumbai',
+  chennai: 'Chennai',
+  kolkata: 'Kolkata',
+  almaty: 'Almaty',
+  astana: 'Astana',
+  moscow: 'Moscow',
+  'saint petersburg': 'Saint Petersburg',
+  novosibirsk: 'Novosibirsk',
+  tashkent: 'Tashkent',
+  samarkand: 'Samarkand',
+  dubai: 'Dubai',
+  'abu dhabi': 'Abu Dhabi',
+  tehran: 'Tehran',
+  mashhad: 'Mashhad',
+  istanbul: 'Istanbul',
+  ankara: 'Ankara',
+  beijing: 'Beijing',
+  shanghai: 'Shanghai',
+  guangzhou: 'Guangzhou',
+  shenzhen: 'Shenzhen',
+  london: 'London',
+  'new york': 'New York',
+  chicago: 'Chicago',
+  houston: 'Houston',
+  singapore: 'Singapore',
+  jakarta: 'Jakarta',
+  bangkok: 'Bangkok',
+  'ho chi minh': 'Ho Chi Minh',
+  hanoi: 'Hanoi',
+  seoul: 'Seoul',
+  tokyo: 'Tokyo',
+  osaka: 'Osaka',
+  frankfurt: 'Frankfurt',
+  hamburg: 'Hamburg',
+  rotterdam: 'Rotterdam',
+  paris: 'Paris',
+  milan: 'Milan',
+  madrid: 'Madrid',
+  cairo: 'Cairo',
+  lagos: 'Lagos',
+  nairobi: 'Nairobi',
+  johannesburg: 'Johannesburg',
+  'cape town': 'Cape Town',
+  'sao paulo': 'Sao Paulo',
+  'buenos aires': 'Buenos Aires',
+};
+
+const CITY_COUNTRIES: Record<string, string> = {
+  kabul: 'Afghanistan',
+  'mazar-e-sharif': 'Afghanistan',
+  'mazar-i-sharif': 'Afghanistan',
+  mazar: 'Afghanistan',
+  herat: 'Afghanistan',
+  kandahar: 'Afghanistan',
+  jalalabad: 'Afghanistan',
+  kunduz: 'Afghanistan',
+  karachi: 'Pakistan',
+  lahore: 'Pakistan',
+  islamabad: 'Pakistan',
+  peshawar: 'Pakistan',
+  delhi: 'India',
+  'new delhi': 'India',
+  mumbai: 'India',
+  chennai: 'India',
+  kolkata: 'India',
+  almaty: 'Kazakhstan',
+  astana: 'Kazakhstan',
+  moscow: 'Russia',
+  'saint petersburg': 'Russia',
+  novosibirsk: 'Russia',
+  tashkent: 'Uzbekistan',
+  samarkand: 'Uzbekistan',
+  dubai: 'United Arab Emirates',
+  'abu dhabi': 'United Arab Emirates',
+  tehran: 'Iran',
+  mashhad: 'Iran',
+  istanbul: 'Turkey',
+  ankara: 'Turkey',
+  beijing: 'China',
+  shanghai: 'China',
+  guangzhou: 'China',
+  shenzhen: 'China',
+  london: 'United Kingdom',
+  'new york': 'United States',
+  chicago: 'United States',
+  houston: 'United States',
+  singapore: 'Singapore',
+  jakarta: 'Indonesia',
+  bangkok: 'Thailand',
+  'ho chi minh': 'Vietnam',
+  hanoi: 'Vietnam',
+  seoul: 'South Korea',
+  tokyo: 'Japan',
+  osaka: 'Japan',
+  frankfurt: 'Germany',
+  hamburg: 'Germany',
+  rotterdam: 'Netherlands',
+  paris: 'France',
+  milan: 'Italy',
+  madrid: 'Spain',
+  cairo: 'Egypt',
+  lagos: 'Nigeria',
+  nairobi: 'Kenya',
+  johannesburg: 'South Africa',
+  'cape town': 'South Africa',
+  'sao paulo': 'Brazil',
+  'buenos aires': 'Argentina',
+};
+
+// -----------------------------------------------------------------------------
+// Comparison scope
+// -----------------------------------------------------------------------------
 
 function rowMatchesComparisonMarket(
   row: RawMarketRow,
-  comparisonMarkets: string[],
+  markets: string[],
 ): boolean {
-  if (
-    comparisonMarkets.length < 2
-  ) {
+  if (markets.length < 2) {
     return true;
   }
 
-  const values = [
+  const fields = [
     row.country,
     row.origin,
     row.city,
     row.market,
-  ].filter(Boolean);
+  ];
 
-  return comparisonMarkets.some(
-    (market) =>
-      values.some(
-        (value) =>
-          entityMatchesText(
-            market,
-            String(value),
-          ),
-      ),
+  return markets.some((market) =>
+    fields.some(
+      (field) =>
+        field != null &&
+        entityMatchesText(
+          market,
+          String(field),
+        ),
+    ),
   );
 }
 
-function scopeMarketRowsForComparison(
-  rows: RawMarketRow[],
+function scopeMarketRows(
   input: EngineInput,
 ): RawMarketRow[] {
   if (
     !isComparisonWorkflow(input)
   ) {
-    return rows;
+    return input.marketRows;
   }
 
   const markets =
-    getComparisonMarkets(input);
+    comparisonMarkets(input);
 
-  return rows.filter(
+  return input.marketRows.filter(
     (row) =>
       rowMatchesComparisonMarket(
         row,
@@ -331,19 +526,16 @@ function scopeMarketRowsForComparison(
   );
 }
 
-function researchResultMatchesComparison(
+function researchResultMatchesMarket(
   result: ResearchProviderResult,
-  comparisonMarkets: string[],
+  market: string,
 ): boolean {
   const text =
     `${result.title} ${result.snippet}`;
 
-  return comparisonMarkets.some(
-    (market) =>
-      entityMatchesText(
-        market,
-        text,
-      ),
+  return entityMatchesText(
+    market,
+    text,
   );
 }
 
@@ -356,31 +548,22 @@ function scopeResearchResults(
     return input.researchResults;
   }
 
-  const comparisonMarkets =
-    getComparisonMarkets(input);
+  const markets =
+    comparisonMarkets(input);
 
-  const scoped =
-    input.researchResults.filter(
-      (result) =>
-        researchResultMatchesComparison(
+  return input.researchResults.filter(
+    (result) =>
+      markets.some((market) =>
+        researchResultMatchesMarket(
           result,
-          comparisonMarkets,
+          market,
         ),
-    );
-
-  /**
-   * Never invent scope.
-   *
-   * If no result can be directly tied to a
-   * comparison market, return zero scoped results
-   * instead of treating unrelated global research
-   * as comparison evidence.
-   */
-  return scoped;
+      ),
+  );
 }
 
 // -----------------------------------------------------------------------------
-// Research unit and FX normalization
+// Research units / FX
 // -----------------------------------------------------------------------------
 
 function normalizeResearchUnit(
@@ -471,9 +654,13 @@ function getUsdFxRate(
         fx.rate > 0,
     );
 
-  if (inverse) {
+  if (
+    inverse &&
+    inverse.rate > 0
+  ) {
     return {
-      rate: 1 / inverse.rate,
+      rate:
+        1 / inverse.rate,
       estimated: false,
     };
   }
@@ -510,21 +697,23 @@ function normalizeToUsdPerMt(
     return null;
   }
 
-  const fx =
+  const fallback =
     getUsdFxRate(
       currency,
       [],
     ).rate;
 
   if (
-    fx == null ||
-    !Number.isFinite(fx)
+    fallback == null ||
+    !Number.isFinite(
+      fallback,
+    )
   ) {
     return null;
   }
 
   const usd =
-    price * fx;
+    price * fallback;
 
   switch (
     unit.toLowerCase()
@@ -543,11 +732,6 @@ function normalizeToUsdPerMt(
     case 'lb':
     case 'pound':
       return usd * 2204.62;
-
-    case 'bag':
-    case 'litre':
-    case 'liter':
-      return null;
 
     default:
       return null;
@@ -602,11 +786,6 @@ function normalizeToUsdPerMtWithFx(
     case 'pound':
       return usd * 2204.62;
 
-    case 'bag':
-    case 'litre':
-    case 'liter':
-      return null;
-
     default:
       return null;
   }
@@ -660,7 +839,9 @@ function buildOperationalIntelligence(
 
   const latest =
     dates.length > 0
-      ? dates[dates.length - 1]
+      ? dates[
+          dates.length - 1
+        ]
       : null;
 
   const unit =
@@ -675,10 +856,10 @@ function buildOperationalIntelligence(
   const status =
     shipments.reduce(
       (acc, shipment) => {
-        const key =
+        const value =
           (
-            shipment.status ||
-            'Planned'
+            shipment.status ??
+            'planned'
           )
             .toLowerCase()
             .replace(
@@ -687,23 +868,36 @@ function buildOperationalIntelligence(
             );
 
         if (
-          key.includes('transit')
+          value.includes(
+            'transit',
+          )
         ) {
-          acc.in_transit += 1;
+          acc.in_transit +=
+            1;
         } else if (
-          key.includes('arriv')
+          value.includes(
+            'arriv',
+          )
         ) {
-          acc.arrived += 1;
+          acc.arrived +=
+            1;
         } else if (
-          key.includes('delay')
+          value.includes(
+            'delay',
+          )
         ) {
-          acc.delayed += 1;
+          acc.delayed +=
+            1;
         } else if (
-          key.includes('cancel')
+          value.includes(
+            'cancel',
+          )
         ) {
-          acc.cancelled += 1;
+          acc.cancelled +=
+            1;
         } else {
-          acc.planned += 1;
+          acc.planned +=
+            1;
         }
 
         return acc;
@@ -727,12 +921,13 @@ function buildOperationalIntelligence(
       .sort()[0] ??
     null;
 
-  const inTransitQty =
+  const quantityInTransit =
     shipments
       .filter(
         (shipment) =>
           /transit/i.test(
-            shipment.status,
+            shipment.status ??
+              '',
           ),
       )
       .reduce(
@@ -747,12 +942,13 @@ function buildOperationalIntelligence(
         0,
       );
 
-  const expectedQty =
+  const expectedQuantity =
     shipments
       .filter(
         (shipment) =>
           /planned|transit|delay/i.test(
-            shipment.status,
+            shipment.status ??
+              '',
           ),
       )
       .reduce(
@@ -767,54 +963,74 @@ function buildOperationalIntelligence(
         0,
       );
 
-  const summary = [
-    `${rows.length} stock record(s)`,
+  const summary =
+    [
+      `${rows.length} stock record(s)`,
 
-    `available ${
-      rows.length > 0
-        ? `${sum('available_stock')}${
-            unit ? ` ${unit}` : ''
-          }`
-        : 'UNKNOWN'
-    }`,
+      `available ${
+        rows.length > 0
+          ? `${sum(
+              'available_stock',
+            )}${
+              unit
+                ? ` ${unit}`
+                : ''
+            }`
+          : 'UNKNOWN'
+      }`,
 
-    `in-transit stock ${
-      rows.length > 0
-        ? `${sum('in_transit_stock')}${
-            unit ? ` ${unit}` : ''
-          }`
-        : 'UNKNOWN'
-    }`,
+      `in-transit stock ${
+        rows.length > 0
+          ? `${sum(
+              'in_transit_stock',
+            )}${
+              unit
+                ? ` ${unit}`
+                : ''
+            }`
+          : 'UNKNOWN'
+      }`,
 
-    `expected incoming ${
-      rows.length > 0
-        ? `${sum('expected_incoming')}${
-            unit ? ` ${unit}` : ''
-          }`
-        : 'UNKNOWN'
-    }`,
+      `expected incoming ${
+        rows.length > 0
+          ? `${sum(
+              'expected_incoming',
+            )}${
+              unit
+                ? ` ${unit}`
+                : ''
+            }`
+          : 'UNKNOWN'
+      }`,
 
-    `${shipments.length} shipment/wagon record(s)`,
+      `${shipments.length} shipment/wagon record(s)`,
 
-    `${status.in_transit} in transit`,
+      `${status.in_transit} in transit`,
+      `${status.delayed} delayed`,
 
-    `${status.delayed} delayed`,
-
-    nextEta
-      ? `next ETA ${nextEta}`
-      : 'no ETA recorded',
-  ].join('; ');
+      nextEta
+        ? `next ETA ${nextEta}`
+        : 'no ETA recorded',
+    ].join('; ');
 
   return {
     stock: {
       available:
-        sum('available_stock'),
+        sum(
+          'available_stock',
+        ),
       reserved:
-        sum('reserved_stock'),
+        sum(
+          'reserved_stock',
+        ),
       in_transit:
-        sum('in_transit_stock'),
+        sum(
+          'in_transit_stock',
+        ),
       expected_incoming:
-        sum('expected_incoming'),
+        sum(
+          'expected_incoming',
+        ),
       unit,
       record_count:
         rows.length,
@@ -836,9 +1052,9 @@ function buildOperationalIntelligence(
       cancelled:
         status.cancelled,
       quantity_in_transit:
-        inTransitQty,
+        quantityInTransit,
       expected_quantity:
-        expectedQty,
+        expectedQuantity,
       unit,
       next_eta:
         nextEta,
@@ -889,24 +1105,25 @@ function freshnessOf(
 }
 
 // -----------------------------------------------------------------------------
-// Supply / Demand mapping
+// Supply / Demand classification
 // -----------------------------------------------------------------------------
 
 function mapSupply(
   row: RawMarketRow,
 ): SupplyLevel | null {
-  const supply =
+  const value =
     (
-      row.supply ?? ''
+      row.supply ??
+      ''
     ).toLowerCase();
 
-  if (!supply) {
+  if (!value) {
     return null;
   }
 
   if (
     /critical|severe|acute|crisis|famine|starvation/.test(
-      supply,
+      value,
     )
   ) {
     return 'Critical';
@@ -914,7 +1131,7 @@ function mapSupply(
 
   if (
     /shortage|tight|disrupt|low|deplet|scarce|constrain|insufficient|fail|poor harvest|export ban|restriction/.test(
-      supply,
+      value,
     )
   ) {
     return 'Tight';
@@ -922,7 +1139,7 @@ function mapSupply(
 
   if (
     /abundant|surplus|oversupply|bumper|record|high production|excess|glut|ample|overproduction/.test(
-      supply,
+      value,
     )
   ) {
     return 'High';
@@ -930,7 +1147,7 @@ function mapSupply(
 
   if (
     /adequate|sufficient|normal|stable|steady|available|in stock/.test(
-      supply,
+      value,
     )
   ) {
     return 'Normal';
@@ -942,18 +1159,19 @@ function mapSupply(
 function mapDemand(
   row: RawMarketRow,
 ): DemandLevel | null {
-  const demand =
+  const value =
     (
-      row.demand ?? ''
+      row.demand ??
+      ''
     ).toLowerCase();
 
-  if (!demand) {
+  if (!value) {
     return null;
   }
 
   if (
     /surg|soaring|skyrocket|explosive|spike/.test(
-      demand,
+      value,
     )
   ) {
     return 'Surging';
@@ -961,7 +1179,7 @@ function mapDemand(
 
   if (
     /strong|robust|high|increasing|rising|growing|grew/.test(
-      demand,
+      value,
     )
   ) {
     return 'Strong';
@@ -969,7 +1187,7 @@ function mapDemand(
 
   if (
     /weak|low|declining|falling|dropping|sluggish|soft|reduced/.test(
-      demand,
+      value,
     )
   ) {
     return 'Weak';
@@ -977,7 +1195,7 @@ function mapDemand(
 
   if (
     /normal|stable|steady|moderate/.test(
-      demand,
+      value,
     )
   ) {
     return 'Normal';
@@ -985,10 +1203,6 @@ function mapDemand(
 
   return null;
 }
-
-// -----------------------------------------------------------------------------
-// Web supply / demand classification
-// -----------------------------------------------------------------------------
 
 function classifySupplyFromText(
   text: string,
@@ -1021,7 +1235,7 @@ function classifySupplyFromText(
   }
 
   if (
-    /\b(adequate suppl(?:y|ies)|supplies? (?:remained?|are|were) (?:adequate|sufficient|normal|stable)|normal supply|stable supply|sufficient supply|steady supply|ample|available|in stock|stocks? (?:normal|stable|adequate)|harvest (?:normal|on track|progressing))\b/.test(
+    /\b(adequate suppl(?:y|ies)|normal supply|stable supply|sufficient supply|steady supply|ample|available|in stock|stocks? (?:normal|stable|adequate)|harvest (?:normal|on track|progressing))\b/.test(
       value,
     )
   ) {
@@ -1092,7 +1306,6 @@ interface ResearchSignal {
   level:
     | SupplyLevel
     | DemandLevel;
-
   source: string;
   url: string;
   confidence: Confidence;
@@ -1127,14 +1340,11 @@ function extractSupplyDemandFromResearch(
     if (supply) {
       supplySignals.push({
         level: supply,
-
         source:
           result.title ||
           result.url,
-
         url:
           result.url,
-
         confidence:
           supply === 'Normal'
             ? 'MEDIUM'
@@ -1150,14 +1360,11 @@ function extractSupplyDemandFromResearch(
     if (demand) {
       demandSignals.push({
         level: demand,
-
         source:
           result.title ||
           result.url,
-
         url:
           result.url,
-
         confidence:
           demand === 'Normal'
             ? 'MEDIUM'
@@ -1181,7 +1388,6 @@ function resolveSignals(
   level:
     | SupplyLevel
     | DemandLevel;
-
   evidence: string[];
   conflict: boolean;
 } {
@@ -1195,65 +1401,14 @@ function resolveSignals(
     };
   }
 
-  const rank =
-    (
-      level:
-        | SupplyLevel
-        | DemandLevel,
-    ): number => {
-      switch (level) {
-        case 'Critical':
-          return 1;
-
-        case 'Tight':
-          return 2;
-
-        case 'Weak':
-          return 2;
-
-        case 'Normal':
-          return 3;
-
-        case 'Strong':
-          return 4;
-
-        case 'Surging':
-          return 5;
-
-        case 'High':
-          return 5;
-
-        default:
-          return 0;
-      }
-    };
-
-  const grouped =
-    new Map<
-      string,
-      ResearchSignal[]
-    >();
-
-  for (
-    const signal of signals
-  ) {
-    const key =
-      String(signal.level);
-
-    const list =
-      grouped.get(key) ??
-      [];
-
-    list.push(signal);
-
-    grouped.set(
-      key,
-      list,
-    );
-  }
-
-  const uniqueLevels =
-    [...grouped.keys()];
+  const uniqueLevels = [
+    ...new Set(
+      signals.map(
+        (signal) =>
+          signal.level,
+      ),
+    ),
+  ];
 
   if (
     uniqueLevels.length > 1
@@ -1269,262 +1424,204 @@ function resolveSignals(
     };
   }
 
-  const best =
-    uniqueLevels.sort(
-      (a, b) =>
-        rank(
-          b as SupplyLevel | DemandLevel,
-        ) -
-        rank(
-          a as SupplyLevel | DemandLevel,
-        ),
-    )[0];
-
-  const evidence =
-    signals.map(
-      (signal) =>
-        `${kind.charAt(0).toUpperCase() + kind.slice(1)} (${best}): ${signal.source} (${signal.url})`,
-    );
+  const level =
+    uniqueLevels[0];
 
   return {
-    level:
-      best as SupplyLevel | DemandLevel,
-
-    evidence,
-
+    level,
+    evidence:
+      signals.map(
+        (signal) =>
+          `${kind.charAt(0).toUpperCase() + kind.slice(1)} (${level}): ${signal.source} (${signal.url})`,
+      ),
     conflict: false,
   };
 }
 
 // -----------------------------------------------------------------------------
-// Price extraction from web research
+// Price location extraction
 // -----------------------------------------------------------------------------
 
-function detectResearchLocation(
+interface ResearchLocation {
+  name: string;
+  kind: 'city' | 'country';
+  index: number;
+}
+
+function locationsInText(
   text: string,
-): string | null {
-  const normalized =
+): ResearchLocation[] {
+  const results:
+    ResearchLocation[] = [];
+
+  const lower =
     text.toLowerCase();
 
-  const knownCities: Record<
-    string,
-    string
-  > = {
-    'mazar-e-sharif':
-      'Mazar-e-Sharif',
-    'mazar-i-sharif':
-      'Mazar-e-Sharif',
-    mazar:
-      'Mazar-e-Sharif',
-    kabul: 'Kabul',
-    herat: 'Herat',
-    kandahar: 'Kandahar',
-    jalalabad:
-      'Jalalabad',
-    kunduz: 'Kunduz',
-    karachi: 'Karachi',
-    lahore: 'Lahore',
-    islamabad:
-      'Islamabad',
-    peshawar:
-      'Peshawar',
-    dubai: 'Dubai',
-    almaty: 'Almaty',
-    astana: 'Astana',
-    moscow: 'Moscow',
-    'saint petersburg':
-      'Saint Petersburg',
-    istanbul:
-      'Istanbul',
-    tehran: 'Tehran',
-    delhi: 'Delhi',
-    'new delhi':
-      'New Delhi',
-    mumbai: 'Mumbai',
-    beijing: 'Beijing',
-    shanghai: 'Shanghai',
-    london: 'London',
-    tokyo: 'Tokyo',
-    singapore:
-      'Singapore',
-    'new york':
-      'New York',
-    chicago: 'Chicago',
-    houston: 'Houston',
-    frankfurt:
-      'Frankfurt',
-    hamburg: 'Hamburg',
-    rotterdam:
-      'Rotterdam',
-    paris: 'Paris',
-    milan: 'Milan',
-    madrid: 'Madrid',
-    nairobi: 'Nairobi',
-    cairo: 'Cairo',
-    lagos: 'Lagos',
-    johannesburg:
-      'Johannesburg',
-    'cape town':
-      'Cape Town',
-    'sao paulo':
-      'Sao Paulo',
-    'buenos aires':
-      'Buenos Aires',
-  };
-
-  const knownCountries:
-    Record<
-      string,
-      string
-    > = {
-      afghanistan:
-        'Afghanistan',
-      india: 'India',
-      vietnam: 'Vietnam',
-      china: 'China',
-      pakistan: 'Pakistan',
-      thailand: 'Thailand',
-      kazakhstan:
-        'Kazakhstan',
-      russia: 'Russia',
-      turkey: 'Turkey',
-      uae:
-        'United Arab Emirates',
-      'united arab emirates':
-        'United Arab Emirates',
-      iran: 'Iran',
-      'united states':
-        'United States',
-      usa: 'United States',
-      us: 'United States',
-      indonesia:
-        'Indonesia',
-      malaysia:
-        'Malaysia',
-      philippines:
-        'Philippines',
-      japan: 'Japan',
-      australia:
-        'Australia',
-      canada: 'Canada',
-      brazil: 'Brazil',
-      argentina:
-        'Argentina',
-      germany: 'Germany',
-      ukraine: 'Ukraine',
-      'united kingdom':
-        'United Kingdom',
-      uk: 'United Kingdom',
-      france: 'France',
-      italy: 'Italy',
-      spain: 'Spain',
-      netherlands:
-        'Netherlands',
-      singapore:
-        'Singapore',
-      nigeria: 'Nigeria',
-      kenya: 'Kenya',
-      south africa:
-        'South Africa',
-      saudi arabia:
-        'Saudi Arabia',
-      mexico: 'Mexico',
-      poland: 'Poland',
-      romania:
-        'Romania',
-      bulgaria:
-        'Bulgaria',
-      serbia: 'Serbia',
-      georgia:
-        'Georgia',
-      azerbaijan:
-        'Azerbaijan',
-      uzbekistan:
-        'Uzbekistan',
-      turkmenistan:
-        'Turkmenistan',
-      tajikistan:
-        'Tajikistan',
-      kyrgyzstan:
-        'Kyrgyzstan',
-      belgium:
-        'Belgium',
-      austria:
-        'Austria',
-      switzerland:
-        'Switzerland',
-      norway: 'Norway',
-      sweden: 'Sweden',
-      denmark:
-        'Denmark',
-      finland:
-        'Finland',
-      portugal:
-        'Portugal',
-      greece: 'Greece',
-      egypt: 'Egypt',
-      morocco:
-        'Morocco',
-      colombia:
-        'Colombia',
-      chile: 'Chile',
-      peru: 'Peru',
-      ecuador:
-        'Ecuador',
-    };
-
-  const cities =
+  const cityEntries =
     Object.entries(
-      knownCities,
+      KNOWN_CITIES,
     ).sort(
       ([a], [b]) =>
-        b.length -
-        a.length,
+        b.length - a.length,
     );
 
   for (
-    const [
-      city,
-      display,
-    ] of cities
+    const [key, display]
+    of cityEntries
   ) {
-    if (
+    const pattern =
       new RegExp(
-        `\\b${escapeRegex(city)}\\b`,
+        `\\b${escapeRegex(key)}\\b`,
         'i',
-      ).test(normalized)
-    ) {
-      return display;
+      );
+
+    const match =
+      pattern.exec(lower);
+
+    if (match) {
+      results.push({
+        name: display,
+        kind: 'city',
+        index: match.index,
+      });
     }
   }
 
-  const countries =
+  const countryEntries =
     Object.entries(
-      knownCountries,
+      KNOWN_COUNTRIES,
     ).sort(
       ([a], [b]) =>
-        b.length -
-        a.length,
+        b.length - a.length,
     );
 
   for (
-    const [
-      country,
-      display,
-    ] of countries
+    const [key, display]
+    of countryEntries
   ) {
-    if (
+    const pattern =
       new RegExp(
-        `\\b${escapeRegex(country)}\\b`,
+        `\\b${escapeRegex(key)}\\b`,
         'i',
-      ).test(normalized)
-    ) {
-      return display;
+      );
+
+    const match =
+      pattern.exec(lower);
+
+    if (match) {
+      results.push({
+        name: display,
+        kind: 'country',
+        index: match.index,
+      });
     }
   }
 
-  return null;
+  return results.sort(
+    (a, b) =>
+      a.index - b.index,
+  );
 }
+
+function locationNearPrice(
+  text: string,
+  priceIndex: number,
+): ResearchLocation | null {
+  const locations =
+    locationsInText(text);
+
+  if (
+    locations.length === 0
+  ) {
+    return null;
+  }
+
+  const maxDistance =
+    220;
+
+  const nearby =
+    locations
+      .filter(
+        (location) =>
+          Math.abs(
+            location.index -
+              priceIndex,
+          ) <= maxDistance,
+      )
+      .sort(
+        (a, b) =>
+          Math.abs(
+            a.index -
+              priceIndex,
+          ) -
+          Math.abs(
+            b.index -
+              priceIndex,
+          ),
+      );
+
+  if (
+    nearby.length === 0
+  ) {
+    return null;
+  }
+
+  return nearby[0];
+}
+
+function priceIsAttributableToComparisonMarket(
+  location: ResearchLocation | null,
+  text: string,
+  priceIndex: number,
+  markets: string[],
+): boolean {
+  if (
+    !location ||
+    markets.length < 2
+  ) {
+    return false;
+  }
+
+  /**
+   * Direct nearby location has highest confidence.
+   */
+  if (
+    markets.some((market) =>
+      entityMatchesText(
+        market,
+        location.name,
+      ),
+    )
+  ) {
+    return true;
+  }
+
+  /**
+   * Also inspect a short local window.
+   */
+  const window =
+    text.slice(
+      Math.max(
+        0,
+        priceIndex - 100,
+      ),
+      Math.min(
+        text.length,
+        priceIndex + 100,
+      ),
+    );
+
+  return markets.some((market) =>
+    entityMatchesText(
+      market,
+      window,
+    ),
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Price extraction
+// -----------------------------------------------------------------------------
 
 function extractPricePointsFromResearch(
   input: EngineInput,
@@ -1535,11 +1632,11 @@ function extractPricePointsFromResearch(
   const research =
     scopeResearchResults(input);
 
-  const comparisonMarkets =
-    getComparisonMarkets(input);
-
-  const comparison =
+  const isComparison =
     isComparisonWorkflow(input);
+
+  const markets =
+    comparisonMarkets(input);
 
   const today =
     new Date()
@@ -1547,28 +1644,22 @@ function extractPricePointsFromResearch(
       .slice(0, 10);
 
   /**
-   * Supported styles:
-   *
+   * Handles:
    * USD 420/MT
    * USD 420 per MT
    * $420/MT
    * €240/MT
    * £240 per tonne
-   *
-   * The engine deliberately does not guess a unit
-   * when no unit is present.
    */
   const priceRegex =
-    /(?:(USD|EUR|GBP|RUB|KZT|AFN|PKR|INR|CNY|VND|THB|TRY|IRR|AED|JPY|CAD|AUD|CHF|SAR|QAR)\s*([0-9][\d,]*(?:\.\d+)?)|(\$|€|£)\s*([0-9][\d,]*(?:\.\d+)?))(?:(?:\s*[–-]\s*)(?:([0-9][\d,]*(?:\.\d+)?)))?\s*(?:per\s+|\/\s*)(kg|kilo|kilogram|ton|tonne|mt|metric ton|bag|lb|pound|litre|liter)\b/gi;
+    /(?:(USD|EUR|GBP|RUB|KZT|AFN|PKR|INR|CNY|VND|THB|TRY|IRR|AED|JPY|CAD|AUD|CHF|SAR|QAR)\s*([0-9][\d,]*(?:\.\d+)?)|(\$|€|£)\s*([0-9][\d,]*(?:\.\d+)?))(?:(?:\s*[–-]\s*)([0-9][\d,]*(?:\.\d+)?))?\s*(?:per\s+|\/\s*)(kg|kilo|kilogram|ton|tonne|mt|metric ton|bag|lb|pound|litre|liter)\b/gi;
 
-  const symbolCurrency: Record<
-    string,
-    string
-  > = {
-    '$': 'USD',
-    '€': 'EUR',
-    '£': 'GBP',
-  };
+  const symbolCurrency:
+    Record<string, string> = {
+      '$': 'USD',
+      '€': 'EUR',
+      '£': 'GBP',
+    };
 
   for (
     const result of research
@@ -1587,9 +1678,7 @@ function extractPricePointsFromResearch(
     while (
       (
         match =
-          priceRegex.exec(
-            text,
-          )
+          priceRegex.exec(text)
       ) !== null
     ) {
       const currency =
@@ -1646,8 +1735,7 @@ function extractPricePointsFromResearch(
         high != null &&
         Number.isFinite(high)
           ? (
-              low +
-              high
+              low + high
             ) / 2
           : low;
 
@@ -1664,78 +1752,44 @@ function extractPricePointsFromResearch(
         lower.slice(
           Math.max(
             0,
-            match.index - 220,
+            match.index - 180,
           ),
           match.index,
         );
 
-      /**
-       * Reject price-change amounts:
-       *
-       * "fell by USD 10 to USD 220/MT"
-       *
-       * but preserve a genuine final price if
-       * the text structure clearly indicates it.
-       */
-      const isChangeAmount =
+      const changeAmount =
         /\b(?:fell|fallen|dropped|declined|decreased|reduced|down)\b[^.]{0,140}\bby\b[^.]{0,100}(?:usd|eur|gbp|rub|kzt|afn|pkr|inr|cny|vnd|thb|try|irr|aed|jpy|cad|aud|chf|sar|qar|\$|€|£)?\s*[0-9][\d,]*(?:\.\d+)?\s*$/i.test(
           contextBefore,
         );
 
       if (
-        isChangeAmount
+        changeAmount
       ) {
         continue;
       }
 
-      const locationContext =
-        lower.slice(
-          Math.max(
-            0,
-            match.index - 220,
-          ),
-          Math.min(
-            lower.length,
-            match.index + 220,
-          ),
-        );
-
       const location =
-        detectResearchLocation(
-          locationContext,
+        locationNearPrice(
+          text,
+          match.index,
         );
 
       /**
-       * COMPARISON SAFETY RULE:
+       * Comparison safety:
        *
-       * If this is a comparison, the price must
-       * be attributable to one of the comparison
-       * markets.
-       *
-       * Ambiguous global prices are rejected.
+       * Price MUST be attributable to one of
+       * the requested comparison markets.
        */
       if (
-        comparison
+        isComparison &&
+        !priceIsAttributableToComparisonMarket(
+          location,
+          text,
+          match.index,
+          markets,
+        )
       ) {
-        const attributable =
-          location != null &&
-          comparisonMarkets.some(
-            (market) =>
-              entityMatchesText(
-                market,
-                location,
-              ) ||
-              entityMatchesText(
-                market,
-                locationContext,
-              ),
-          );
-
-        if (
-          !attributable
-        ) {
-          continue;
-        }
+        continue;
       }
 
       const normalized =
@@ -1746,16 +1800,16 @@ function extractPricePointsFromResearch(
           input.fxRates,
         );
 
+      const locationName =
+        location?.name ??
+        'Web research (global)';
+
       points.push({
         label:
-          `${result.title || 'Web research'} — ${
-            location ??
-            'Web research (global)'
-          }`,
+          `${result.title || 'Web research'} — ${locationName}`,
 
         location:
-          location ??
-          'Web research (global)',
+          locationName,
 
         price,
 
@@ -1812,14 +1866,11 @@ export function pricePointEngine(
   const commodity =
     input.commodity?.toLowerCase();
 
-  const scopedMarketRows =
-    scopeMarketRowsForComparison(
-      input.marketRows,
-      input,
-    );
+  const storedRows =
+    scopeMarketRows(input);
 
   for (
-    const row of scopedMarketRows
+    const row of storedRows
   ) {
     if (
       commodity &&
@@ -1829,15 +1880,11 @@ export function pricePointEngine(
       continue;
     }
 
-    /**
-     * In comparison mode, enforce market scope
-     * again at the price-engine boundary.
-     */
     if (
       isComparisonWorkflow(input) &&
       !rowMatchesComparisonMarket(
         row,
-        getComparisonMarkets(input),
+        comparisonMarkets(input),
       )
     ) {
       continue;
@@ -1917,7 +1964,7 @@ export function pricePointEngine(
 
   points.sort(
     (a, b) => {
-      const date =
+      const dateCompare =
         (
           b.observation_date ??
           ''
@@ -1926,8 +1973,10 @@ export function pricePointEngine(
           '',
         );
 
-      if (date !== 0) {
-        return date;
+      if (
+        dateCompare !== 0
+      ) {
+        return dateCompare;
       }
 
       return (
@@ -1958,8 +2007,10 @@ function comparablePriceChange(
   const valid =
     points.filter(
       (point) =>
-        point.normalized_price_usd != null &&
-        point.normalized_price_usd > 0 &&
+        point.normalized_price_usd !=
+          null &&
+        point.normalized_price_usd >
+          0 &&
         !!point.location &&
         !!point.observation_date,
     );
@@ -2038,15 +2089,9 @@ function comparablePriceChange(
         null &&
       prior.normalized_price_usd !=
         null &&
-      prior.normalized_price_usd > 0
+      prior.normalized_price_usd >
+        0
     ) {
-      const change =
-        (
-          recent.normalized_price_usd -
-          prior.normalized_price_usd
-        ) /
-        prior.normalized_price_usd;
-
       return {
         recent:
           recent.normalized_price_usd,
@@ -2054,7 +2099,12 @@ function comparablePriceChange(
         prior:
           prior.normalized_price_usd,
 
-        change,
+        change:
+          (
+            recent.normalized_price_usd -
+            prior.normalized_price_usd
+          ) /
+          prior.normalized_price_usd,
       };
     }
   }
@@ -2063,7 +2113,7 @@ function comparablePriceChange(
 }
 
 // -----------------------------------------------------------------------------
-// Supply / Demand engine
+// Supply / demand engine
 // -----------------------------------------------------------------------------
 
 export function supplyDemandEngine(
@@ -2086,55 +2136,49 @@ export function supplyDemandEngine(
   const conflicts:
     string[] = [];
 
-  const relevantMarketRows =
+  const relevantRows =
     input.commodity
-      ? scopeMarketRowsForComparison(
-          input.marketRows.filter(
-            (row) =>
-              row.commodity?.toLowerCase() ===
-              input.commodity!.toLowerCase(),
-          ),
+      ? scopeMarketRows(
           input,
+        ).filter(
+          (row) =>
+            row.commodity?.toLowerCase() ===
+            input.commodity!.toLowerCase(),
         )
-      : scopeMarketRowsForComparison(
-          input.marketRows,
+      : scopeMarketRows(
           input,
         );
 
-  /**
-   * Stored market evidence.
-   */
   for (
-    const row
-    of relevantMarketRows
+    const row of relevantRows
   ) {
-    const mappedSupply =
+    const rowSupply =
       mapSupply(row);
 
     if (
-      mappedSupply &&
+      rowSupply &&
       supply === 'Unknown'
     ) {
       supply =
-        mappedSupply;
+        rowSupply;
 
       evidence.push(
-        `Supply (${row.country ?? row.market ?? 'market'}): ${mappedSupply} — ${row.source ?? 'stored'}`,
+        `Supply (${row.country ?? row.market ?? 'market'}): ${rowSupply} — ${row.source ?? 'stored'}`,
       );
     }
 
-    const mappedDemand =
+    const rowDemand =
       mapDemand(row);
 
     if (
-      mappedDemand &&
+      rowDemand &&
       demand === 'Unknown'
     ) {
       demand =
-        mappedDemand;
+        rowDemand;
 
       evidence.push(
-        `Demand (${row.country ?? row.market ?? 'market'}): ${mappedDemand} — ${row.source ?? 'stored'}`,
+        `Demand (${row.country ?? row.market ?? 'market'}): ${rowDemand} — ${row.source ?? 'stored'}`,
       );
     }
   }
@@ -2197,29 +2241,12 @@ export function supplyDemandEngine(
     }
   }
 
-  if (
-    supply === 'Unknown' &&
-    demand === 'Unknown' &&
-    conflicts.length === 0
-  ) {
-    return {
-      supply,
-      demand,
-      evidence:
-        INSUFFICIENT,
-      conflicts: [],
-    };
-  }
-
   return {
     supply,
     demand,
     evidence:
-      evidence.join(
-        '; ',
-      ) ||
+      evidence.join('; ') ||
       INSUFFICIENT,
-
     conflicts,
   };
 }
@@ -2288,17 +2315,10 @@ export function demandEngine(
   const signals:
     DemandSignal[] = [];
 
-  const marketRows =
-    scopeMarketRowsForComparison(
-      input.marketRows,
-      input,
-    );
-
-  /**
-   * OBSERVED signals.
-   */
   for (
-    const row of marketRows
+    const row of scopeMarketRows(
+      input,
+    )
   ) {
     const demand =
       mapDemand(row);
@@ -2328,17 +2348,11 @@ export function demandEngine(
     });
   }
 
-  /**
-   * INFERRED signals.
-   *
-   * Comparison workflows use only
-   * comparison-relevant research.
-   */
-  const research =
-    scopeResearchResults(input);
-
   for (
-    const result of research
+    const result
+    of scopeResearchResults(
+      input,
+    )
   ) {
     const text =
       `${result.title} ${result.snippet}`;
@@ -2428,7 +2442,8 @@ export function demandEngine(
       ];
 
     if (
-      observedLevels.length === 1
+      observedLevels.length ===
+      1
     ) {
       level =
         observedLevels[0];
@@ -2452,17 +2467,11 @@ export function demandEngine(
 
       trend =
         observed[0].trend;
-    } else {
-      level =
-        'Unknown';
-
-      confidence =
-        'LOW';
     }
   } else if (
     inferred.length > 0
   ) {
-    const levels =
+    const inferredLevels =
       [
         ...new Set(
           inferred.map(
@@ -2473,16 +2482,11 @@ export function demandEngine(
       ];
 
     if (
-      levels.length > 1
+      inferredLevels.length ===
+      1
     ) {
       level =
-        'Unknown';
-
-      confidence =
-        'LOW';
-    } else {
-      level =
-        levels[0];
+        inferredLevels[0];
 
       confidence =
         inferred.reduce(
@@ -2502,45 +2506,78 @@ export function demandEngine(
         );
 
       const trends =
-        inferred
-          .map(
-            (signal) =>
-              signal.trend,
-          )
-          .filter(
-            (
-              value,
-            ) =>
-              value !==
-              'UNKNOWN',
-          );
-
-      const uniqueTrends =
         [
           ...new Set(
-            trends,
+            inferred
+              .map(
+                (signal) =>
+                  signal.trend,
+              )
+              .filter(
+                (value) =>
+                  value !==
+                  'UNKNOWN',
+              ),
           ),
         ];
 
       if (
-        uniqueTrends.length === 1
+        trends.length === 1
       ) {
         trend =
-          uniqueTrends[0];
-      } else if (
-        uniqueTrends.length > 1
-      ) {
-        trend =
-          'UNKNOWN';
+          trends[0];
       }
+    }
+  }
+
+  if (
+    observed.length > 0
+  ) {
+    const conflict =
+      new Set(
+        observed.map(
+          (signal) =>
+            signal.level,
+        ),
+      ).size > 1;
+
+    if (conflict) {
+      level =
+        'Unknown';
+
+      confidence =
+        'LOW';
+
+      trend =
+        'UNKNOWN';
+    }
+  } else if (
+    inferred.length > 0
+  ) {
+    const conflict =
+      new Set(
+        inferred.map(
+          (signal) =>
+            signal.level,
+        ),
+      ).size > 1;
+
+    if (conflict) {
+      level =
+        'Unknown';
+
+      confidence =
+        'LOW';
+
+      trend =
+        'UNKNOWN';
     }
   }
 
   const score =
     demandScore(level);
 
-  let summary:
-    string;
+  let summary: string;
 
   if (
     level === 'Unknown' &&
@@ -2601,7 +2638,6 @@ export function sentimentEngine(
     supply === 'High'
   ) {
     signal += 1;
-
     reasons.push(
       'Supply is high (price-easing).',
     );
@@ -2611,7 +2647,6 @@ export function sentimentEngine(
     supply === 'Tight'
   ) {
     signal -= 1;
-
     reasons.push(
       'Supply is tight (price-supportive).',
     );
@@ -2621,7 +2656,6 @@ export function sentimentEngine(
     supply === 'Critical'
   ) {
     signal -= 2;
-
     reasons.push(
       'Supply is critical (price-positive).',
     );
@@ -2631,7 +2665,6 @@ export function sentimentEngine(
     demand === 'Strong'
   ) {
     signal += 1;
-
     reasons.push(
       'Demand is strong.',
     );
@@ -2641,7 +2674,6 @@ export function sentimentEngine(
     demand === 'Surging'
   ) {
     signal += 2;
-
     reasons.push(
       'Demand is surging.',
     );
@@ -2651,7 +2683,6 @@ export function sentimentEngine(
     demand === 'Weak'
   ) {
     signal -= 1;
-
     reasons.push(
       'Demand is weak.',
     );
@@ -2663,30 +2694,28 @@ export function sentimentEngine(
     );
 
   if (
-    priceChange
-  ) {
-    if (
-      priceChange.change >
+    priceChange &&
+    priceChange.change >
       0.03
-    ) {
-      signal += 1;
+  ) {
+    signal += 1;
+    reasons.push(
+      `Prices up ${(priceChange.change * 100).toFixed(1)}% recently.`,
+    );
+  }
 
-      reasons.push(
-        `Prices up ${(priceChange.change * 100).toFixed(1)}% recently.`,
-      );
-    } else if (
-      priceChange.change <
+  if (
+    priceChange &&
+    priceChange.change <
       -0.03
-    ) {
-      signal -= 1;
-
-      reasons.push(
-        `Prices down ${(
-          priceChange.change *
-          100
-        ).toFixed(1)}% recently.`,
-      );
-    }
+  ) {
+    signal -= 1;
+    reasons.push(
+      `Prices down ${(
+        priceChange.change *
+        100
+      ).toFixed(1)}% recently.`,
+    );
   }
 
   if (
@@ -2695,7 +2724,6 @@ export function sentimentEngine(
     return {
       sentiment:
         'Highly Uncertain',
-
       rationale:
         INSUFFICIENT,
     };
@@ -2727,9 +2755,7 @@ export function sentimentEngine(
   return {
     sentiment,
     rationale:
-      reasons.join(
-        '; ',
-      ),
+      reasons.join('; '),
   };
 }
 
@@ -2740,19 +2766,6 @@ export function sentimentEngine(
 export function landedCostEngine(
   input: EngineInput,
 ): LandedCostBreakdown | null {
-  /**
-   * No import origin means no defensible purchase price.
-   */
-  if (
-    !input.commodity ||
-    !input.origin
-  ) {
-    return null;
-  }
-
-  /**
-   * Comparison is never a landed-cost workflow.
-   */
   if (
     isComparisonWorkflow(
       input,
@@ -2761,17 +2774,24 @@ export function landedCostEngine(
     return null;
   }
 
-  const origin =
-    normalizeText(
-      input.origin,
-    );
+  if (
+    !input.commodity ||
+    !input.origin
+  ) {
+    return null;
+  }
 
   const commodity =
     normalizeText(
       input.commodity,
     );
 
-  const originRows =
+  const origin =
+    normalizeText(
+      input.origin,
+    );
+
+  const rows =
     input.marketRows.filter(
       (row) =>
         normalizeText(
@@ -2788,7 +2808,7 @@ export function landedCostEngine(
     );
 
   const purchase =
-    originRows[0];
+    rows[0];
 
   if (
     !purchase ||
@@ -2801,51 +2821,41 @@ export function landedCostEngine(
         {
           label:
             'Purchase Price',
-
           value:
             null,
-
           currency:
             null,
-
           source:
             'stored',
-
           data_status:
             'ESTIMATED',
-
           confidence:
             'LOW',
         },
       ],
-
       total:
         null,
-
       currency:
         null,
-
       unit:
         null,
-
       total_per_unit:
         null,
-
       note:
         `${INSUFFICIENT} for ${input.origin} ${input.commodity} purchase price.`,
     };
   }
 
-  const liveFx =
+  const fx =
     getUsdFxRate(
       purchase.currency,
       input.fxRates,
     );
 
   const purchaseUsd =
-    liveFx.rate != null
+    fx.rate != null
       ? purchase.price *
-        liveFx.rate
+        fx.rate
       : null;
 
   const components:
@@ -2874,19 +2884,14 @@ export function landedCostEngine(
       {
         label:
           'Freight',
-
         value:
           null,
-
         currency:
           'USD',
-
         source:
           'not provided',
-
         data_status:
           'ESTIMATED',
-
         confidence:
           'LOW',
       },
@@ -2894,19 +2899,14 @@ export function landedCostEngine(
       {
         label:
           'Transit & Handling',
-
         value:
           null,
-
         currency:
           'USD',
-
         source:
           'not provided',
-
         data_status:
           'ESTIMATED',
-
         confidence:
           'LOW',
       },
@@ -2914,19 +2914,14 @@ export function landedCostEngine(
       {
         label:
           'Customs / Tariff',
-
         value:
           null,
-
         currency:
           'USD',
-
         source:
           'not provided',
-
         data_status:
           'ESTIMATED',
-
         confidence:
           'LOW',
       },
@@ -2934,19 +2929,14 @@ export function landedCostEngine(
       {
         label:
           'Taxes',
-
         value:
           null,
-
         currency:
           'USD',
-
         source:
           'not provided',
-
         data_status:
           'ESTIMATED',
-
         confidence:
           'LOW',
       },
@@ -2954,19 +2944,14 @@ export function landedCostEngine(
       {
         label:
           'Handling & Storage',
-
         value:
           null,
-
         currency:
           'USD',
-
         source:
           'not provided',
-
         data_status:
           'ESTIMATED',
-
         confidence:
           'LOW',
       },
@@ -2990,7 +2975,7 @@ export function landedCostEngine(
     note:
       'Landed cost cannot be verified yet. Freight, transit, customs/tariff, taxes, and handling must be supplied as explicit inputs or verified data. No tariff rate is invented by the system.' +
       (
-        liveFx.estimated
+        fx.estimated
           ? ' FX rate is ESTIMATED (fallback) — not live.'
           : ''
       ),
@@ -3018,52 +3003,47 @@ export function anomalyEngine(
     );
 
   if (
-    priceChange
-  ) {
-    if (
-      priceChange.change >
+    priceChange &&
+    priceChange.change >
       0.1
-    ) {
-      anomalies.push({
-        type:
-          'Sudden price increase',
+  ) {
+    anomalies.push({
+      type:
+        'Sudden price increase',
+      severity:
+        priceChange.change >
+        0.25
+          ? 'HIGH'
+          : 'MEDIUM',
+      description:
+        `Price up ${(priceChange.change * 100).toFixed(1)}% vs prior observation.`,
+    });
+  }
 
-        severity:
-          priceChange.change >
-          0.25
-            ? 'HIGH'
-            : 'MEDIUM',
-
-        description:
-          `Price up ${(priceChange.change * 100).toFixed(1)}% vs prior observation.`,
-      });
-    }
-
-    if (
-      priceChange.change <
+  if (
+    priceChange &&
+    priceChange.change <
       -0.1
-    ) {
-      anomalies.push({
-        type:
-          'Sudden price decrease',
-
-        severity:
-          priceChange.change <
-          -0.25
-            ? 'HIGH'
-            : 'MEDIUM',
-
-        description:
-          `Price down ${(
-            -priceChange.change *
-            100
-          ).toFixed(1)}% vs prior observation.`,
-      });
-    }
+  ) {
+    anomalies.push({
+      type:
+        'Sudden price decrease',
+      severity:
+        priceChange.change <
+        -0.25
+          ? 'HIGH'
+          : 'MEDIUM',
+      description:
+        `Price down ${(
+          -priceChange.change *
+          100
+        ).toFixed(1)}% vs prior observation.`,
+    });
   }
 
   const {
     supply,
+    demand,
   } =
     supplyDemandEngine(
       input,
@@ -3075,10 +3055,8 @@ export function anomalyEngine(
     anomalies.push({
       type:
         'Supply shortage',
-
       severity:
         'CRITICAL',
-
       description:
         'Supply classified as Critical.',
     });
@@ -3090,21 +3068,12 @@ export function anomalyEngine(
     anomalies.push({
       type:
         'Tight supply',
-
       severity:
         'MEDIUM',
-
       description:
         'Supply classified as Tight.',
     });
   }
-
-  const {
-    demand,
-  } =
-    supplyDemandEngine(
-      input,
-    );
 
   if (
     demand === 'Surging'
@@ -3112,10 +3081,8 @@ export function anomalyEngine(
     anomalies.push({
       type:
         'Demand surge',
-
       severity:
         'HIGH',
-
       description:
         'Demand classified as Surging.',
     });
@@ -3250,13 +3217,12 @@ export function forecastEngine(
     );
   }
 
-  const risk:
+  const marketRisk:
     Forecast['market_risk'] =
     sentiment === 'Negative' ||
     supply === 'Critical'
       ? 'HIGH'
-      : sentiment ===
-            'Cautious' ||
+      : sentiment === 'Cautious' ||
           supply === 'Tight'
         ? 'MEDIUM'
         : 'LOW';
@@ -3267,25 +3233,18 @@ export function forecastEngine(
     return {
       horizon:
         '7 days',
-
       price_direction:
         'UNCERTAIN',
-
       supply_direction:
         'UNCERTAIN',
-
       demand_direction:
         'UNCERTAIN',
-
       market_risk:
         'MEDIUM',
-
       sentiment:
         'Highly Uncertain',
-
       confidence:
         'LOW',
-
       rationale:
         INSUFFICIENT,
     };
@@ -3323,16 +3282,14 @@ export function forecastEngine(
       demandDirection,
 
     market_risk:
-      risk,
+      marketRisk,
 
     sentiment,
 
     confidence,
 
     rationale:
-      rationale.join(
-        ' ',
-      ),
+      rationale.join(' '),
   };
 }
 
@@ -3370,9 +3327,7 @@ export function recommendationEngine(
     input.marketRows.length > 0;
 
   /**
-   * Comparison recommendation:
-   *
-   * This is not an import decision.
+   * Comparison is a separate decision domain.
    */
   if (
     isComparisonWorkflow(
@@ -3380,7 +3335,7 @@ export function recommendationEngine(
     )
   ) {
     const markets =
-      getComparisonMarkets(
+      comparisonMarkets(
         input,
       );
 
@@ -3412,24 +3367,12 @@ export function recommendationEngine(
       };
     }
 
-    if (
-      supply === 'Critical'
-    ) {
-      return {
-        rec:
-          'HOLD',
-
-        rationale:
-          'Critical supply conditions materially increase market risk.',
-      };
-    }
-
     return {
       rec:
         'MONITOR',
 
       rationale:
-        `Comparison data is available for ${markets[0]} vs ${markets[1]}; continue monitoring verified price and supply signals.`,
+        `Comparison evidence is available for ${markets[0]} vs ${markets[1]}; continue monitoring verified market signals.`,
     };
   }
 
@@ -3470,7 +3413,8 @@ export function recommendationEngine(
 
     if (
       destinationPrice &&
-      destinationPrice.price != null &&
+      destinationPrice.price !=
+        null &&
       destinationPrice.currency
     ) {
       const destinationPerMt =
@@ -3504,8 +3448,7 @@ export function recommendationEngine(
           landedPerMt;
 
         if (
-          margin >
-          0.1
+          margin > 0.1
         ) {
           return {
             rec:
@@ -3553,7 +3496,6 @@ export function recommendationEngine(
     return {
       rec:
         'NEED MORE DATA',
-
       rationale:
         INSUFFICIENT,
     };
@@ -3569,7 +3511,6 @@ export function recommendationEngine(
     return {
       rec:
         'HOLD',
-
       rationale:
         'Critical anomaly detected — avoid new commitments until conditions clarify.',
     };
@@ -3582,7 +3523,6 @@ export function recommendationEngine(
     return {
       rec:
         'MONITOR',
-
       rationale:
         'Tight supply creates price risk; monitor for stabilization before large commitments.',
     };
@@ -3594,7 +3534,6 @@ export function recommendationEngine(
     return {
       rec:
         'HOLD',
-
       rationale:
         'Weak demand suggests limited near-term opportunity.',
     };
@@ -3603,7 +3542,6 @@ export function recommendationEngine(
   return {
     rec:
       'MONITOR',
-
     rationale:
       'Market conditions balanced — continue monitoring for directional signals.',
   };
@@ -3626,26 +3564,25 @@ export function sourceEngine(
     new Set<string>();
 
   for (
-    const row
-    of scopeMarketRowsForComparison(
-      input.marketRows,
+    const row of scopeMarketRows(
       input,
     )
   ) {
-    const name =
+    const source =
       row.source ??
       'Stored data';
 
     if (
-      seen.has(name)
+      seen.has(source)
     ) {
       continue;
     }
 
-    seen.add(name);
+    seen.add(source);
 
     sources.push({
-      name,
+      name:
+        source,
 
       source_type:
         row.source_type ??
@@ -3668,22 +3605,21 @@ export function sourceEngine(
   }
 
   for (
-    const fx
-    of input.fxRates
+    const fx of input.fxRates
   ) {
-    const name =
-      fx.source;
-
     if (
-      seen.has(name)
+      seen.has(fx.source)
     ) {
       continue;
     }
 
-    seen.add(name);
+    seen.add(
+      fx.source,
+    );
 
     sources.push({
-      name,
+      name:
+        fx.source,
 
       source_type:
         'fx',
@@ -3759,21 +3695,17 @@ export function sourceEngine(
     > = {};
 
   for (
-    const point
-    of points
+    const point of points
   ) {
     if (
       point.normalized_price_usd !=
         null &&
-      point.normalized_price_usd > 0
+      point.normalized_price_usd >
+        0
     ) {
-      const location =
-        point.location ||
-        'Unknown';
-
       (
         byLocation[
-          location
+          point.location
         ] ??= []
       ).push(
         point.normalized_price_usd,
@@ -3859,10 +3791,8 @@ export function researchSummaryEngine(
       : 'No web research results returned.';
   }
 
-  const top =
-    results.slice(0, 6);
-
-  return top
+  return results
+    .slice(0, 6)
     .map(
       (result, index) =>
         `${index + 1}. ${result.title}: ${result.snippet.slice(0, 220)}`,
@@ -3880,13 +3810,10 @@ function isRelevantTradeUpdate(
   const text =
     `${result.title} ${result.snippet}`.toLowerCase();
 
-  const irrelevant =
+  if (
     /\b(proxy|proxies|vpn|security verification|application testing|residential ip|datacenter|checkout testing|seo|hosting|ip address|anonymous browsing)\b/i.test(
       text,
-    );
-
-  if (
-    irrelevant
+    )
   ) {
     return false;
   }
@@ -3906,36 +3833,35 @@ export function dataGapsEngine(
   const gaps:
     string[] = [];
 
-  const comparisonMarkets =
-    getComparisonMarkets(
-      input,
-    );
-
   if (
     isComparisonWorkflow(
       input,
     )
   ) {
+    const markets =
+      comparisonMarkets(
+        input,
+      );
+
     if (
       input.marketRows.length ===
       0
     ) {
       gaps.push(
-        `No stored market observations for comparison markets: ${comparisonMarkets[0]} vs ${comparisonMarkets[1]}.`,
+        `No stored market observations for comparison markets: ${markets[0]} vs ${markets[1]}.`,
       );
     }
 
-    const comparisonPrices =
+    const prices =
       pricePointEngine(
         input,
       );
 
     if (
-      comparisonPrices.length <
-      2
+      prices.length < 2
     ) {
       gaps.push(
-        `Fewer than two directly attributable price observations are available for ${comparisonMarkets[0]} vs ${comparisonMarkets[1]}.`,
+        `Fewer than two directly attributable price observations are available for ${markets[0]} vs ${markets[1]}.`,
       );
     }
 
@@ -3947,7 +3873,7 @@ export function dataGapsEngine(
       ).length === 0
     ) {
       gaps.push(
-        `Web research returned results, but none could be directly attributed to ${comparisonMarkets[0} or ${comparisonMarkets[1]}.`,
+        `Web research returned results, but none could be directly attributed to ${markets[0]} or ${markets[1]}.`,
       );
     }
   } else if (
@@ -4023,7 +3949,9 @@ export function dataGapsEngine(
     );
   }
 
-  return gaps;
+  return [
+    ...new Set(gaps),
+  ];
 }
 
 // -----------------------------------------------------------------------------
@@ -4123,16 +4051,11 @@ export function buildFindings(
       input,
     );
 
-  const comparisonMarkets =
-    getComparisonMarkets(
+  const markets =
+    comparisonMarkets(
       input,
     );
 
-  /**
-   * Target price views.
-   *
-   * For comparison workflows these remain context-oriented.
-   */
   const destinationCountryPoints =
     input.destination
       ? points.filter(
@@ -4161,16 +4084,11 @@ export function buildFindings(
 
   const targetCountry =
     comparison
-      ? (
-          comparisonMarkets.length >=
-          2
-            ? `Comparison context: ${
-                input.comparisonContext ??
-                input.destination ??
-                'global'
-              }. Prices are scoped to ${comparisonMarkets[0]} vs ${comparisonMarkets[1]}; context-market prices are not comparison observations.`
-            : INSUFFICIENT
-        )
+      ? `Comparison context: ${
+          input.comparisonContext ??
+          input.destination ??
+          'global'
+        }. Prices are scoped to ${markets[0]} vs ${markets[1]}; context-market prices are not comparison observations.`
       : input.destination
         ? (
             destinationCountryPoints
@@ -4216,10 +4134,8 @@ export function buildFindings(
     );
 
   const comparisonSummary =
-    comparison &&
-    comparisonMarkets.length >=
-      2
-      ? `Comparison: ${comparisonMarkets[0]} vs ${comparisonMarkets[1]}${
+    comparison
+      ? `Comparison: ${markets[0]} vs ${markets[1]}${
           input.comparisonContext
             ? ` | Market context: ${input.comparisonContext}`
             : ''
@@ -4261,7 +4177,7 @@ export function buildFindings(
       ? `${comparisonSummary ?? 'Comparison requested.'} ${
           points.length >= 2
             ? `${points.length} directly attributable comparison price observation(s) found.`
-            : 'Insufficient directly attributable comparison price observations found.'
+            : 'No sufficient directly attributable comparison price observations found.'
         } ${
           input.fxRates.length > 0
             ? 'Live FX rates available for normalization.'
@@ -4305,17 +4221,20 @@ export function buildFindings(
     operational.stock
       .record_count > 0 &&
     operational.stock
-      .in_transit != null &&
-    operational.stock
-      .expected_incoming != null &&
-    operational.stock
       .available != null &&
     operational.stock
-      .in_transit +
+      .in_transit != null &&
+    operational.stock
+      .expected_incoming !=
+      null &&
+    (
       operational.stock
-      .expected_incoming >
+        .in_transit +
       operational.stock
-      .available
+        .expected_incoming
+    ) >
+      operational.stock
+        .available
       ? 'Tight'
       : supply;
 
@@ -4343,12 +4262,7 @@ export function buildFindings(
 
     origin_market:
       comparison
-        ? (
-            comparisonMarkets.length >=
-            2
-              ? `No import origin is assigned. Comparison is ${comparisonMarkets[0]} vs ${comparisonMarkets[1]}.`
-              : 'No comparison origin assigned.'
-          )
+        ? `No import origin is assigned. Comparison is ${markets[0]} vs ${markets[1]}.`
         : input.origin
           ? (
               points
@@ -4420,9 +4334,7 @@ export function buildFindings(
       'No relevant government/trade updates identified in available sources.',
 
     logistics_risks:
-      logisticsRiskParts.join(
-        ' ',
-      ) ||
+      logisticsRiskParts.join(' ') ||
       'No logistics disruption signals in scoped data.',
 
     key_risks:
@@ -4433,10 +4345,9 @@ export function buildFindings(
 
     opportunities:
       comparison
-        ? points.length >=
-            2
+        ? points.length >= 2
           ? [
-              `Verified comparison evidence available for ${comparisonMarkets[0]} vs ${comparisonMarkets[1]}.`,
+              `Direct comparison evidence available for ${markets[0]} vs ${markets[1]}.`,
             ]
           : []
         : supply === 'High'
@@ -4475,7 +4386,7 @@ export function buildFindings(
 }
 
 // -----------------------------------------------------------------------------
-// New Commodity Evaluation Engine
+// Evaluation engine
 // -----------------------------------------------------------------------------
 
 function scoreSupply(
@@ -4502,9 +4413,7 @@ function scoreSupply(
 function scoreSentiment(
   sentiment: SentimentLevel,
 ): number {
-  switch (
-    sentiment
-  ) {
+  switch (sentiment) {
     case 'Positive':
       return 80;
 
@@ -4527,22 +4436,14 @@ export function evaluationEngine(
   findings: ResearchFindings,
 ): EvaluationResult {
   /**
-   * Evaluation is an opportunity/import decision.
-   *
-   * A pure comparison does not represent market-entry
-   * feasibility, so we keep this path defensive.
+   * Defensive guard:
+   * comparison is not an import-opportunity evaluation.
    */
   if (
     isComparisonWorkflow(
       input,
     )
   ) {
-    /**
-     * The executor currently avoids calling this function
-     * for compare workflows. This fallback exists so that
-     * accidental future calls cannot create a fake
-     * import/opportunity interpretation.
-     */
     return {
       commodity:
         input.commodity ??
@@ -4631,12 +4532,10 @@ export function evaluationEngine(
   const demandScoreValue =
     demandScore(demand);
 
-  const supplyScore =
-    scoreSupply(
-      supply,
-    );
+  const supplyScoreValue =
+    scoreSupply(supply);
 
-  const sentimentScore =
+  const sentimentScoreValue =
     scoreSentiment(
       sentiment,
     );
@@ -4709,7 +4608,7 @@ export function evaluationEngine(
     );
   } else {
     supplyText =
-      `${supply} (score: ${supplyScore}/100). ${
+      `${supply} (score: ${supplyScoreValue}/100). ${
         supply === 'High'
           ? 'Ample supply — potential buying advantage.'
           : supply === 'Tight' ||
@@ -4747,16 +4646,6 @@ export function evaluationEngine(
   ) {
     supplyText +=
       ` Field-reported stock availability: ${stockRaw}.`;
-
-    if (
-      /depleted|low/i.test(
-        stockRaw,
-      )
-    ) {
-      reasons.push(
-        'Low/depleted stock availability reported in field data.',
-      );
-    }
   }
 
   const arrivalsRaw =
@@ -4807,15 +4696,15 @@ export function evaluationEngine(
   }
 
   if (
-    operational.shipments
-      .total > 0
+    operational.shipments.total >
+    0
   ) {
     supplyText +=
       ` Shipments/wagons: ${operational.shipments.total} total, ${operational.shipments.in_transit} in transit, ${operational.shipments.delayed} delayed.`;
 
     if (
-      operational.shipments
-        .delayed > 0
+      operational.shipments.delayed >
+      0
     ) {
       reasons.push(
         `${operational.shipments.delayed} delayed shipment(s)/wagon(s) increase logistics risk.`,
@@ -4832,22 +4721,18 @@ export function evaluationEngine(
         row.competitor_info,
     )?.competitor_info;
 
-  let competitionText:
-    string;
+  const competitionText =
+    competitorRaw
+      ? `${competitorRaw}`
+      : 'UNKNOWN — no competitor intelligence available.';
 
   if (
     competitorRaw
   ) {
-    competitionText =
-      `${competitorRaw}`;
-
     reasons.push(
       'Competitor activity noted in field data.',
     );
   } else {
-    competitionText =
-      'UNKNOWN — no competitor intelligence available.';
-
     warnings.push(
       'No competitor intelligence available.',
     );
@@ -4991,9 +4876,6 @@ export function evaluationEngine(
         row.export_status,
     )?.export_status;
 
-  let logisticsText:
-    string;
-
   const logisticsParts:
     string[] = [];
 
@@ -5021,52 +4903,21 @@ export function evaluationEngine(
     );
   }
 
-  if (
+  const logisticsText =
     logisticsParts.length > 0
-  ) {
-    logisticsText =
-      logisticsParts.join(
-        ' | ',
-      );
-
-    if (
-      logisticsRaw &&
-      /disrupt|blocked|constrain/i.test(
-        logisticsRaw,
-      )
-    ) {
-      reasons.push(
-        'Logistics disruption detected.',
-      );
-    }
-
-    if (
-      importRaw &&
-      /restrict|ban/i.test(
-        importRaw,
-      )
-    ) {
-      reasons.push(
-        'Import restrictions detected.',
-      );
-    }
-  } else {
-    logisticsText =
-      'No logistics or trade status data — UNKNOWN.';
-
-    warnings.push(
-      'No logistics/import/export status data.',
-    );
-  }
-
-  let sentimentText:
-    string;
+      ? logisticsParts.join(
+          ' | ',
+        )
+      : 'No logistics or trade status data — UNKNOWN.';
 
   const fieldSentiment =
     input.marketRows.find(
       (row) =>
         row.market_sentiment,
     )?.market_sentiment;
+
+  let sentimentText:
+    string;
 
   if (
     sentiment ===
@@ -5080,31 +4931,13 @@ export function evaluationEngine(
     );
   } else {
     sentimentText =
-      `${sentiment} (score: ${sentimentScore}/100).`;
+      `${sentiment} (score: ${sentimentScoreValue}/100).`;
 
     if (
       fieldSentiment
     ) {
       sentimentText +=
         ` Field sentiment: ${fieldSentiment}.`;
-    }
-
-    if (
-      sentiment ===
-      'Positive'
-    ) {
-      reasons.push(
-        'Positive market sentiment.',
-      );
-    }
-
-    if (
-      sentiment ===
-      'Negative'
-    ) {
-      reasons.push(
-        'Negative market sentiment — caution advised.',
-      );
     }
   }
 
@@ -5131,15 +4964,11 @@ export function evaluationEngine(
             anomaly.type,
         )
         .join(', ')}.`;
-
-    reasons.push(
-      `${criticalAnomalies.length} critical/high risk(s) detected.`,
-    );
   } else if (
     anomalies.length > 0
   ) {
     riskText =
-      `MODERATE — ${anomalies.length} anomaly/anomalies detected (all medium/low).`;
+      `MODERATE — ${anomalies.length} anomaly/anomalies detected.`;
   } else {
     riskText =
       'No significant risks detected in available data.';
@@ -5162,26 +4991,13 @@ export function evaluationEngine(
     );
   }
 
-  let logisticsPenalty =
-    0;
-
-  if (
+  const logisticsPenalty =
     logisticsRaw &&
     /disrupt|blocked|constrain/i.test(
       logisticsRaw,
     )
-  ) {
-    logisticsPenalty -= 5;
-  }
-
-  if (
-    importRaw &&
-    /restrict|ban/i.test(
-      importRaw,
-    )
-  ) {
-    logisticsPenalty -= 5;
-  }
+      ? -5
+      : 0;
 
   const competitionPenalty =
     competitorRaw
@@ -5192,9 +5008,9 @@ export function evaluationEngine(
     Math.round(
       demandScoreValue *
         0.25 +
-        supplyScore *
+        supplyScoreValue *
         0.15 +
-        sentimentScore *
+        sentimentScoreValue *
         0.15 +
         (
           recommendation ===
@@ -5245,50 +5061,6 @@ export function evaluationEngine(
       'MEDIUM';
   }
 
-  const hasLocalData =
-    input.marketRows.some(
-      (row) =>
-        (
-          input.city &&
-          row.city?.toLowerCase() ===
-            input.city.toLowerCase()
-        ) ||
-        (
-          input.destination &&
-          row.country?.toLowerCase() ===
-            input.destination.toLowerCase()
-        ),
-    );
-
-  if (
-    !hasLocalData &&
-    input.city
-  ) {
-    confidence =
-      confidence === 'HIGH'
-        ? 'MEDIUM'
-        : 'LOW';
-
-    warnings.push(
-      `No verified local market data for ${input.city} — evaluation based on external/estimated sources only.`,
-    );
-  }
-
-  if (
-    input.fxRates.length ===
-      0 &&
-    landed?.total != null
-  ) {
-    confidence =
-      confidence === 'HIGH'
-        ? 'MEDIUM'
-        : 'LOW';
-
-    warnings.push(
-      'FX rates are ESTIMATED (fallback) — landed cost accuracy is reduced.',
-    );
-  }
-
   let cappedScore =
     clamp(
       opportunityScore,
@@ -5298,7 +5070,7 @@ export function evaluationEngine(
 
   if (
     confidence === 'LOW' &&
-    !hasLocalData
+    points.length === 0
   ) {
     cappedScore =
       Math.min(
@@ -5306,11 +5078,6 @@ export function evaluationEngine(
         30,
       );
   }
-
-  const allGaps = [
-    ...gaps,
-    ...warnings,
-  ];
 
   return {
     commodity:
@@ -5364,6 +5131,9 @@ export function evaluationEngine(
           ],
 
     data_gaps:
-      allGaps,
+      [
+        ...gaps,
+        ...warnings,
+      ],
   };
 }
