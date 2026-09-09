@@ -1410,8 +1410,26 @@ function locationNearPrice(
   text: string,
   priceIndex: number,
 ): ResearchLocation | null {
+  const windowStart =
+    Math.max(
+      0,
+      priceIndex - 140,
+    );
+
+  const windowEnd =
+    Math.min(
+      text.length,
+      priceIndex + 80,
+    );
+
+  const window =
+    text.slice(
+      windowStart,
+      windowEnd,
+    );
+
   const locations =
-    locationsInText(text);
+    locationsInText(window);
 
   if (
     locations.length === 0
@@ -1419,39 +1437,62 @@ function locationNearPrice(
     return null;
   }
 
-  const maxDistance =
-    220;
+  const absoluteLocations =
+    locations.map(
+      (location) => ({
+        ...location,
+        index:
+          windowStart +
+          location.index,
+      }),
+    );
 
-  const nearby =
-    locations
+  const before =
+    absoluteLocations
       .filter(
         (location) =>
-          Math.abs(
-            location.index -
-              priceIndex,
-          ) <= maxDistance,
+          location.index <=
+          priceIndex,
       )
       .sort(
         (a, b) =>
           Math.abs(
-            a.index -
-              priceIndex,
+            priceIndex -
+              b.index,
           ) -
           Math.abs(
-            b.index -
-              priceIndex,
+            priceIndex -
+              a.index,
           ),
       );
 
   if (
-    nearby.length === 0
+    before.length > 0
   ) {
-    return null;
+    return before[0];
   }
 
-  return nearby[0];
-}
+  const after =
+    absoluteLocations
+      .filter(
+        (location) =>
+          location.index >
+          priceIndex,
+      )
+      .sort(
+        (a, b) =>
+          a.index -
+          b.index,
+      );
 
+  if (
+    after.length > 0
+  ) {
+    return after[0];
+  }
+
+  return null;
+}
 function priceIsAttributableToComparisonMarket(
   location: ResearchLocation | null,
   text: string,
