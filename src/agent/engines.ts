@@ -2094,9 +2094,7 @@ export function buildFindings(
       operational.summary
     }. Recommendation: ${rec}.`;
 
-  const supplyText =
-    operational.stock.record_count > 0
-      ? (
+  
           operational.stock.available !=
             null &&
           operational.stock.in_transit !=
@@ -2114,10 +2112,7 @@ export function buildFindings(
         )
       : 'Operational stock: UNKNOWN — no stock records available.';
 
-  const shipmentText =
-    operational.shipments.total > 0
-      ? ` Shipments/wagons: ${operational.shipments.total} total, ${operational.shipments.in_transit} in transit, ${operational.shipments.delayed} delayed.`
-      : ' Shipments/wagons: UNKNOWN — no shipment records available.';
+  
 
   const fieldCompetitor =
     input.marketRows.find(
