@@ -1503,8 +1503,7 @@ function priceIsAttributableToComparisonMarket(
 function extractPricePointsFromResearch(
   input: EngineInput,
 ): PricePoint[] {
-  const points:
-    PricePoint[] = [];
+  const points: PricePoint[] = [];
 
   const research =
     scopeResearchResults(input);
@@ -1520,15 +1519,139 @@ function extractPricePointsFromResearch(
       .toISOString()
       .slice(0, 10);
 
-  const priceRegex =
-    /(?:(USD|EUR|GBP|RUB|KZT|AFN|PKR|INR|CNY|VND|THB|TRY|IRR|AED|JPY|CAD|AUD|CHF|SAR|QAR)\s*([0-9][\d,]*(?:\.\d+)?)|(\$|€|£)\s*([0-9][\d,]*(?:\.\d+)?))(?:(?:\s*[–-]\s*)([0-9][\d,]*(?:\.\d+)?))?\s*(?:per\s+|\/\s*)(kg|kilo|kilogram|ton|tonne|mt|metric ton|bag|lb|pound|litre|liter)\b/gi;
+  const symbolCurrency: Record<string, string> = {
+    '$': 'USD',
+    '€': 'EUR',
+    '£': 'GBP',
+  };
 
-  const symbolCurrency:
-    Record<string, string> = {
-      '$': 'USD',
-      '€': 'EUR',
-      '£': 'GBP',
-    };
+  const addPoint = (
+    result: ResearchProviderResult,
+    location: string,
+    price: number,
+    currency: string,
+    unit: string,
+    note: string,
+  ) => {
+    if (
+      !Number.isFinite(price) ||
+      price <= 0
+    ) {
+      return;
+    }
+
+    const normalized =
+      normalizeToUsdPerMtWithFx(
+        price,
+        currency,
+        unit,
+        input.fxRates,
+      );
+
+    points.push({
+      label:
+        `${result.title || 'Web research'} — ${location}`,
+
+      location,
+
+      price,
+
+      currency,
+
+      unit,
+
+      normalized_price_usd:
+        normalized,
+
+      normalized_unit:
+        'USD/MT',
+
+      source:
+        result.url ||
+        result.title ||
+        'web research',
+
+      data_status:
+        'REPORTED',
+
+      confidence:
+        'MEDIUM',
+
+      freshness:
+        'CURRENT',
+
+      observation_date:
+        today,
+
+      note,
+    });
+  };
+
+  /**
+   * Global country aliases used only for structured market-price tables.
+   */
+  const tableCountryAliases: Record<string, string> = {
+    argentina: 'Argentina',
+    australia: 'Australia',
+    canada: 'Canada',
+    china: 'China',
+    'european union': 'European Union',
+    eu: 'European Union',
+    france: 'France',
+    germany: 'Germany',
+    hungary: 'Hungary',
+    india: 'India',
+    iran: 'Iran',
+    italy: 'Italy',
+    japan: 'Japan',
+    kazakhstan: 'Kazakhstan',
+    malaysia: 'Malaysia',
+    mexico: 'Mexico',
+    netherlands: 'Netherlands',
+    pakistan: 'Pakistan',
+    poland: 'Poland',
+    romania: 'Romania',
+    russia: 'Russia',
+    russian: 'Russia',
+    serbia: 'Serbia',
+    singapore: 'Singapore',
+    'south africa': 'South Africa',
+    spain: 'Spain',
+    thailand: 'Thailand',
+    turkey: 'Turkey',
+    ukraine: 'Ukraine',
+    'united kingdom': 'United Kingdom',
+    'united states': 'United States',
+    usa: 'United States',
+    us: 'United States',
+    uzbekistan: 'Uzbekistan',
+    vietnam: 'Vietnam',
+  };
+
+  const countryKeys =
+    Object.keys(
+      tableCountryAliases,
+    ).sort(
+      (a, b) =>
+        b.length -
+        a.length,
+    );
+
+  const countryPattern =
+    countryKeys
+      .map(escapeRegex)
+      .join('|');
+
+  /**
+   * Explicit price forms:
+   *
+   * USD 420/MT
+   * $420/MT
+   * €240 per tonne
+   * $233-236/MT
+   */
+  const explicitPriceRegex =
+    /(?:(USD|EUR|GBP|RUB|KZT|AFN|PKR|INR|CNY|VND|THB|TRY|IRR|AED|JPY|CAD|AUD|CHF|SAR|QAR)\s*([0-9][\d,]*(?:\.\d+)?)|(\$|€|£)\s*([0-9][\d,]*(?:\.\d+)?))(?:(?:\s*[–-]\s*)([0-9][\d,]*(?:\.\d+)?))?\s*(?:per\s+|\/\s*)(kg|kilo|kilogram|ton|tonne|mt|metric ton|bag|lb|pound|litre|liter)\b/gi;
 
   for (
     const result of research
@@ -1539,7 +1662,11 @@ function extractPricePointsFromResearch(
     const lower =
       text.toLowerCase();
 
-    priceRegex.lastIndex = 0;
+    // -------------------------------------------------------------------------
+    // A. Explicitly formatted prices
+    // -------------------------------------------------------------------------
+
+    explicitPriceRegex.lastIndex = 0;
 
     let match:
       RegExpExecArray | null;
@@ -1547,7 +1674,7 @@ function extractPricePointsFromResearch(
     while (
       (
         match =
-          priceRegex.exec(text)
+          explicitPriceRegex.exec(text)
       ) !== null
     ) {
       const currency =
@@ -1604,7 +1731,8 @@ function extractPricePointsFromResearch(
         high != null &&
         Number.isFinite(high)
           ? (
-              low + high
+              low +
+              high
             ) / 2
           : low;
 
@@ -1626,14 +1754,16 @@ function extractPricePointsFromResearch(
           match.index,
         );
 
+      /**
+       * Ignore numeric amounts that are clearly describing a change
+       * rather than a market price.
+       */
       const changeAmount =
         /\b(?:fell|fallen|dropped|declined|decreased|reduced|down)\b[^.]{0,140}\bby\b[^.]{0,100}(?:usd|eur|gbp|rub|kzt|afn|pkr|inr|cny|vnd|thb|try|irr|aed|jpy|cad|aud|chf|sar|qar|\$|€|£)?\s*[0-9][\d,]*(?:\.\d+)?\s*$/i.test(
           contextBefore,
         );
 
-      if (
-        changeAmount
-      ) {
+      if (changeAmount) {
         continue;
       }
 
@@ -1643,6 +1773,10 @@ function extractPricePointsFromResearch(
           match.index,
         );
 
+      /**
+       * Comparison safety:
+       * Afghanistan/context is never enough.
+       */
       if (
         isComparison &&
         !priceIsAttributableToComparisonMarket(
@@ -1655,66 +1789,201 @@ function extractPricePointsFromResearch(
         continue;
       }
 
-      const normalized =
-        normalizeToUsdPerMtWithFx(
-          price,
-          currency,
-          unit,
-          input.fxRates,
+      addPoint(
+        result,
+        location?.name ??
+          'Web research (global)',
+        price,
+        currency,
+        unit,
+        `Explicit price extracted from web research. Source: ${result.url}${
+          high != null
+            ? ` Range ${low}–${high}; midpoint used.`
+            : ''
+        }`,
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // B. Structured country → price table extraction
+    //
+    // Example:
+    //
+    // Argentina Australia Canada EU Russia United States
+    // $239 $291 $292 $262 $224 $321
+    //
+    // The table is accepted only when:
+    //   1. It is clearly a price/FOB table.
+    //   2. At least two countries are found.
+    //   3. The country count equals the price count.
+    //   4. Comparison mode emits only requested comparison markets.
+    //   5. The unit is supported by surrounding text.
+    // -------------------------------------------------------------------------
+
+    const hasPriceTableContext =
+      /\b(?:fob|export bids?|export prices?|price assessments?|daily fob|international daily fob)\b/i.test(
+        text,
+      ) &&
+      /(?:\$\s*\/\s*mt|usd\s*\/\s*mt|usd\s*per\s*mt|dollars?\s*\/\s*mt)/i.test(
+        text,
+      );
+
+    if (!hasPriceTableContext) {
+      continue;
+    }
+
+    const tableRegex =
+      new RegExp(
+        `((?:\\b(?:${countryPattern})\\b[\\s,|]*){2,})((?:\\$\\s*[0-9][\\d,]*(?:\\.\\d+)?[\\s,|]*){2,})`,
+        'gi',
+      );
+
+    tableRegex.lastIndex = 0;
+
+    let tableMatch:
+      RegExpExecArray | null;
+
+    while (
+      (
+        tableMatch =
+          tableRegex.exec(text)
+      ) !== null
+    ) {
+      const countryBlock =
+        tableMatch[1];
+
+      const priceBlock =
+        tableMatch[2];
+
+      const countries =
+        Array.from(
+          countryBlock.matchAll(
+            new RegExp(
+              `\\b(${countryPattern})\\b`,
+              'gi',
+            ),
+          ),
+        ).map(
+          (item) =>
+            tableCountryAliases[
+              item[1].toLowerCase()
+            ],
         );
 
-      const locationName =
-        location?.name ??
-        'Web research (global)';
+      const prices =
+        Array.from(
+          priceBlock.matchAll(
+            /\$\s*([0-9][\d,]*(?:\.\d+)?)/g,
+          ),
+        ).map(
+          (item) =>
+            Number(
+              item[1].replace(
+                /,/g,
+                '',
+              ),
+            ),
+        );
 
-      points.push({
-        label:
-          `${result.title || 'Web research'} — ${locationName}`,
+      if (
+        countries.length < 2 ||
+        countries.length !==
+          prices.length
+      ) {
+        continue;
+      }
 
-        location:
-          locationName,
+      for (
+        let i = 0;
+        i < countries.length;
+        i += 1
+      ) {
+        const country =
+          countries[i];
 
-        price,
+        const price =
+          prices[i];
 
-        currency,
+        if (
+          !country ||
+          !Number.isFinite(price) ||
+          price <= 0
+        ) {
+          continue;
+        }
 
-        unit,
+        /**
+         * In comparison mode only emit the requested markets.
+         * Context country is never treated as a comparison market.
+         */
+        if (
+          isComparison &&
+          !markets.some(
+            (market) =>
+              normalizeText(
+                market,
+              ) ===
+                normalizeText(
+                  country,
+                ) ||
+              entityMatchesText(
+                market,
+                country,
+              ),
+          )
+        ) {
+          continue;
+        }
 
-        normalized_price_usd:
-          normalized,
-
-        normalized_unit:
-          'USD/MT',
-
-        source:
-          result.url ||
-          result.title ||
-          'web research',
-
-        data_status:
-          'REPORTED',
-
-        confidence:
-          'MEDIUM',
-
-        freshness:
-          'CURRENT',
-
-        observation_date:
-          today,
-
-        note:
-          `Extracted from web research${
-            high != null
-              ? ` (range ${low}–${high}, midpoint used)`
-              : ''
-          }. Source: ${result.url}`,
-      });
+        addPoint(
+          result,
+          country,
+          price,
+          'USD',
+          'MT',
+          `Structured FOB country-price table extracted from ${result.url}. Country-to-price position matched from the published table; not inferred from market context.`,
+        );
+      }
     }
   }
 
-  return points;
+  // ---------------------------------------------------------------------------
+  // De-duplicate identical observations.
+  // ---------------------------------------------------------------------------
+
+  const unique =
+    new Map<
+      string,
+      PricePoint
+    >();
+
+  for (
+    const point of points
+  ) {
+    const key = [
+      point.source,
+      point.location,
+      point.price,
+      point.currency,
+      point.unit,
+      point.observation_date,
+    ].join('|');
+
+    if (
+      !unique.has(key)
+    ) {
+      unique.set(
+        key,
+        point,
+      );
+    }
+  }
+
+  return [
+    ...unique.values(),
+  ];
 }
+
 // -----------------------------------------------------------------------------
 // Price engine
 // -----------------------------------------------------------------------------
