@@ -483,7 +483,6 @@ const CITIES: Record<string, string> = {
   singapore: 'Singapore',
   jakarta: 'Indonesia',
   bangkok: 'Thailand',
-  ho: 'Vietnam',
   'ho chi minh': 'Vietnam',
   hanoi: 'Vietnam',
   seoul: 'South Korea',
@@ -879,14 +878,55 @@ function detectObjective(text: string): string {
   const lower = text.toLowerCase();
 
   if (
-    /\bcompare\b|
-       \bcomparison\b|
-       \bversus\b|
-       \bvs\.?\b|
-       \bbetween\b/i.test(lower)
+    /\bcompare\b|\bcomparison\b|\bversus\b|\bvs\.?\b|\bbetween\b/.test(
+      lower,
+    )
   ) {
     return 'compare';
   }
+
+  if (
+    /\bshould\s+we\s+import\b|\bimport\s+feasibility\b|\bimport\s+research\b|\bshould.*\bimport\b/.test(
+      lower,
+    )
+  ) {
+    return 'import_feasibility';
+  }
+
+  if (
+    /\bimport\b.*\bfrom\b|\bimports?\b|\bimporting\b/.test(
+      lower,
+    )
+  ) {
+    return 'import_research';
+  }
+
+  if (
+    /\breport\b|\bweekly\b|\bdaily\b|\bmonthly\b/.test(
+      lower,
+    )
+  ) {
+    return 'report';
+  }
+
+  if (
+    /\bfx\b|\bcurrency\b|\bexchange\s+rate\b|\baffect\b.*\b(wheat|flour|oil|rice|commodity)\b/.test(
+      lower,
+    )
+  ) {
+    return 'fx_impact';
+  }
+
+  if (
+    /\banalyze\b|\banalysis\b|\bmarket\b|\bprices?\b|\bprice\b/.test(
+      lower,
+    )
+  ) {
+    return 'market_analysis';
+  }
+
+  return 'market_analysis';
+}
 
   if (
     /\bshould\s+we\s+import\b|
