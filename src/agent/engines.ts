@@ -249,18 +249,14 @@ function buildOperationalIntelligence(input: EngineInput) {
 
   return {
     stock: {
-      available:
-        rows.length > 0 ? sum('available_stock') : null,
-      reserved:
-        rows.length > 0 ? sum('reserved_stock') : null,
-      in_transit:
-        rows.length > 0 ? sum('in_transit_stock') : null,
-      expected_incoming:
-        rows.length > 0 ? sum('expected_incoming') : null,
-      unit,
-      record_count: rows.length,
-      latest_update: latest,
-    },
+  available: sum('available_stock'),
+  reserved: sum('reserved_stock'),
+  in_transit: sum('in_transit_stock'),
+  expected_incoming: sum('expected_incoming'),
+  unit,
+  record_count: rows.length,
+  latest_update: latest,
+},
     shipments: {
       total: shipments.length,
       in_transit: status.in_transit,
