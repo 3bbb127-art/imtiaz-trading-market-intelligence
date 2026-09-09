@@ -218,16 +218,24 @@ function extractPricePointsFromResearch(input: EngineInput): PricePoint[] {
       const highStr = m[3];
       const high = highStr ? parseFloat(highStr.replace(/,/g, '')) : null;
       const price = high != null ? (low + high) / 2 : low;
-// Ignore numbers that represent a price-change amount rather than the actual price.
+// Ignore numbers that describe a price-change amount rather than a usable market price.
 const contextBefore = lowerText.slice(Math.max(0, m.index - 180), m.index);
 
-const isPriceChangeAmount =
-  /\b(fell|fallen|dropped|declined|decreased|reduced|down)\b/i.test(
+const isChangeAmountPhrase =
+  /\b(fell|fallen|dropped|declined|decreased|reduced)\s+by\b/i.test(
     contextBefore,
-  ) &&
-  !/\bto\s*$/i.test(contextBefore.trim());
+  ) ||
+  /\bdown\s+(?:by|approximately|about)\b/i.test(contextBefore);
 
-if (isPriceChangeAmount) continue;
+const isActualPriceAfterChangeVerb =
+  /\b(fell|fallen|dropped|declined|decreased|reduced)\s+to\b/i.test(
+    contextBefore,
+  ) ||
+  /\bprice\s+(?:is|was|stands at|ranges? between|ranged between)\b/i.test(
+    contextBefore,
+  );
+
+if (isChangeAmountPhrase && !isActualPriceAfterChangeVerb) continue;
       // Determine location from the research text itself — never from user's target city.
       // Check cities first (more specific), then countries, then fall back to global.
       let location = 'Web research (global)';
