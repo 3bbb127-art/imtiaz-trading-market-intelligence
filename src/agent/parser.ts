@@ -3,36 +3,37 @@
 // Design principles:
 // 1. Import route and comparison are DIFFERENT concepts.
 // 2. Comparison markets are stored independently from origin/destination.
-// 3. A market/country mentioned as context must not accidentally become
-//    one side of a comparison.
-// 4. Natural-language commands should work globally, not only for Afghanistan.
+// 3. A country used as market context must not become a comparison market.
+// 4. Natural-language commands work globally, not only for Afghanistan.
 // 5. Existing ParsedIntent fields remain backward-compatible.
-// 6. New comparison metadata is additive and does not require an import route.
+// 6. Comparison metadata is additive.
+// 7. Comparison never creates a fictional import route.
 //
 // Examples:
-//   "Compare wheat prices in Russia and Kazakhstan for Afghanistan."
-//      comparisonMarkets = ["Russia", "Kazakhstan"]
-//      comparisonContext = "Afghanistan"
-//      origin = null
-//      destination = "Afghanistan"
 //
-//   "Compare rice prices in India and Pakistan."
-//      comparisonMarkets = ["India", "Pakistan"]
-//      comparisonContext = null
-//      origin = null
-//      destination = null
+// Compare wheat prices in Russia and Kazakhstan for Afghanistan.
+// -> comparisonMarkets: ["Russia", "Kazakhstan"]
+// -> comparisonContext: "Afghanistan"
+// -> origin: null
+// -> destination: "Afghanistan"
 //
-//   "Research wheat imports from Russia to Afghanistan."
-//      origin = "Russia"
-//      destination = "Afghanistan"
-//      comparisonMarkets = []
+// Research wheat imports from Russia to Afghanistan.
+// -> origin: "Russia"
+// -> destination: "Afghanistan"
+// -> comparisonMarkets: []
 //
-//   "Compare sunflower oil from Russia vs Kazakhstan for Kabul."
-//      comparisonMarkets = ["Russia", "Kazakhstan"]
-//      comparisonContext = "Afghanistan"
-//      city = "Kabul"
-//      origin = null
-//      destination = "Afghanistan"
+// Compare rice prices in India and Pakistan.
+// -> comparisonMarkets: ["India", "Pakistan"]
+// -> comparisonContext: null
+// -> origin: null
+// -> destination: null
+//
+// Compare sunflower oil from Russia vs Kazakhstan for Kabul.
+// -> comparisonMarkets: ["Russia", "Kazakhstan"]
+// -> comparisonContext: "Afghanistan"
+// -> city: "Kabul"
+// -> origin: null
+// -> destination: "Afghanistan"
 
 import type { ParsedIntent } from '../lib/types';
 
@@ -52,12 +53,10 @@ interface CityHit {
   country: string;
 }
 
-/**
- * Canonical global country names.
- *
- * The list intentionally contains broad international coverage.
- * Aliases/abbreviations are handled separately below.
- */
+/* -------------------------------------------------------------------------- */
+/* GLOBAL COUNTRIES                                                           */
+/* -------------------------------------------------------------------------- */
+
 const COUNTRIES = [
   'afghanistan',
   'albania',
@@ -256,12 +255,10 @@ const COUNTRIES = [
   'european union',
 ] as const;
 
-/**
- * Global aliases and abbreviations mapped to canonical country names.
- *
- * This prevents "USA", "US", "UAE", "UK", etc. from becoming
- * separate entities.
- */
+/* -------------------------------------------------------------------------- */
+/* COUNTRY ALIASES                                                            */
+/* -------------------------------------------------------------------------- */
+
 const COUNTRY_ALIASES: Record<string, string> = {
   usa: 'United States',
   us: 'United States',
@@ -286,24 +283,20 @@ const COUNTRY_ALIASES: Record<string, string> = {
   pakistani: 'Pakistan',
   indian: 'India',
   afghan: 'Afghanistan',
-  afghanistan: 'Afghanistan',
 
   czechia: 'Czech Republic',
   'republic of korea': 'South Korea',
   korea: 'South Korea',
-  'dprk': 'North Korea',
+  dprk: 'North Korea',
 
   macedonia: 'North Macedonia',
-  vietnam: 'Vietnam',
   vietnamese: 'Vietnam',
 };
 
-/**
- * Currency map for major/global markets.
- *
- * Unknown countries are simply not assigned a currency automatically.
- * This is safer than inventing a currency.
- */
+/* -------------------------------------------------------------------------- */
+/* CURRENCIES                                                                 */
+/* -------------------------------------------------------------------------- */
+
 const CURRENCIES: Record<string, string> = {
   afghanistan: 'AFN',
   albania: 'ALL',
@@ -318,7 +311,7 @@ const CURRENCIES: Record<string, string> = {
   belarus: 'BYN',
   belgium: 'EUR',
   bolivia: 'BOB',
-  bosnia and herzegovina: 'BAM',
+  'bosnia and herzegovina': 'BAM',
   brazil: 'BRL',
   bulgaria: 'BGN',
   cambodia: 'KHR',
@@ -327,11 +320,11 @@ const CURRENCIES: Record<string, string> = {
   china: 'CNY',
   colombia: 'COP',
   croatia: 'EUR',
-  czech republic: 'CZK',
+  'czech republic': 'CZK',
   denmark: 'DKK',
   egypt: 'EGP',
   estonia: 'EUR',
-  european union: 'EUR',
+  'european union': 'EUR',
   france: 'EUR',
   georgia: 'GEL',
   germany: 'EUR',
@@ -364,7 +357,7 @@ const CURRENCIES: Record<string, string> = {
   myanmar: 'MMK',
   nepal: 'NPR',
   netherlands: 'EUR',
-  new zealand: 'NZD',
+  'new zealand': 'NZD',
   nigeria: 'NGN',
   norway: 'NOK',
   oman: 'OMR',
@@ -375,15 +368,15 @@ const CURRENCIES: Record<string, string> = {
   qatar: 'QAR',
   romania: 'RON',
   russia: 'RUB',
-  saudi arabia: 'SAR',
+  'saudi arabia': 'SAR',
   serbia: 'RSD',
   singapore: 'SGD',
   slovakia: 'EUR',
   slovenia: 'EUR',
-  south africa: 'ZAR',
-  south korea: 'KRW',
+  'south africa': 'ZAR',
+  'south korea': 'KRW',
   spain: 'EUR',
-  sri lanka: 'LKR',
+  'sri lanka': 'LKR',
   sudan: 'SDG',
   sweden: 'SEK',
   switzerland: 'CHF',
@@ -424,11 +417,10 @@ const CURRENCIES: Record<string, string> = {
   qar: 'QAR',
 };
 
-/**
- * Global/common cities and market centers.
- *
- * Country resolution is used only as market context.
- */
+/* -------------------------------------------------------------------------- */
+/* GLOBAL CITIES / MARKET CENTERS                                             */
+/* -------------------------------------------------------------------------- */
+
 const CITIES: Record<string, string> = {
   kabul: 'Afghanistan',
   mazar: 'Afghanistan',
@@ -480,6 +472,7 @@ const CITIES: Record<string, string> = {
   'new york': 'United States',
   chicago: 'United States',
   houston: 'United States',
+
   singapore: 'Singapore',
   jakarta: 'Indonesia',
   bangkok: 'Thailand',
@@ -488,30 +481,30 @@ const CITIES: Record<string, string> = {
   seoul: 'South Korea',
   tokyo: 'Japan',
   osaka: 'Japan',
-  moscow: 'Russia',
+
   frankfurt: 'Germany',
   hamburg: 'Germany',
   rotterdam: 'Netherlands',
   paris: 'France',
   milan: 'Italy',
   madrid: 'Spain',
-  cape town: 'South Africa',
+
+  'cape town': 'South Africa',
   johannesburg: 'South Africa',
   lagos: 'Nigeria',
   nairobi: 'Kenya',
   cairo: 'Egypt',
   casablanca: 'Morocco',
-  sao_paulo: 'Brazil',
+
+  'sao paulo': 'Brazil',
   'são paulo': 'Brazil',
-  buenos_aires: 'Argentina',
   'buenos aires': 'Argentina',
 };
 
-/**
- * Commodities recognized by the parser.
- *
- * Long/multi-word commodities are checked before short terms.
- */
+/* -------------------------------------------------------------------------- */
+/* COMMODITIES                                                               */
+/* -------------------------------------------------------------------------- */
+
 const COMMODITIES = [
   'wheat',
   'flour',
@@ -557,9 +550,10 @@ const COMMODITIES = [
   'black pepper',
 ];
 
-/**
- * Commodity categories.
- */
+/* -------------------------------------------------------------------------- */
+/* COMMODITY CATEGORIES                                                       */
+/* -------------------------------------------------------------------------- */
+
 const COMMODITY_CATEGORIES: Record<string, string> = {
   wheat: 'Grains',
   flour: 'Grains',
@@ -623,16 +617,14 @@ export function commodityCategory(commodity: string): string {
   return COMMODITY_CATEGORIES[commodity.toLowerCase()] ?? 'Other';
 }
 
-/**
- * Escape text before inserting into a RegExp.
- */
+/* -------------------------------------------------------------------------- */
+/* HELPERS                                                                    */
+/* -------------------------------------------------------------------------- */
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/**
- * Normalizes whitespace and separators.
- */
 function normalizeText(value: string): string {
   return value
     .replace(/[→➜➡]/g, ' to ')
@@ -640,29 +632,32 @@ function normalizeText(value: string): string {
     .trim();
 }
 
-/**
- * Canonical title case for display.
- */
-function titleCase(s: string): string {
-  return s
+function titleCase(value: string): string {
+  return value
     .replace(/\b\w/g, (c) => c.toUpperCase())
-    .replace(/-(\w)/g, (m, c) => {
-      return ['e', 'i', 'de', 'du', 'la', 'le'].includes(c.toLowerCase())
-        ? `-${c.toLowerCase()}`
-        : m;
+    .replace(/-(\w)/g, (match, char) => {
+      const lower = String(char).toLowerCase();
+
+      if (['e', 'i', 'de', 'du', 'la', 'le'].includes(lower)) {
+        return `-${lower}`;
+      }
+
+      return match;
     });
 }
 
-/**
- * Canonical country resolver.
- */
 function canonicalCountry(value: string): string | null {
   const normalized = value.trim().toLowerCase();
 
-  if (!normalized) return null;
+  if (!normalized) {
+    return null;
+  }
 
   const alias = COUNTRY_ALIASES[normalized];
-  if (alias) return alias;
+
+  if (alias) {
+    return alias;
+  }
 
   if (COUNTRIES.some((country) => country === normalized)) {
     return titleCase(normalized);
@@ -671,9 +666,18 @@ function canonicalCountry(value: string): string | null {
   return null;
 }
 
-/**
- * Finds commodities globally from the known commodity vocabulary.
- */
+function currencyForCountry(country: string | null): string | null {
+  if (!country) {
+    return null;
+  }
+
+  return CURRENCIES[country.toLowerCase()] ?? null;
+}
+
+/* -------------------------------------------------------------------------- */
+/* COMMODITY DETECTION                                                        */
+/* -------------------------------------------------------------------------- */
+
 function findCommodity(text: string): string | null {
   const lower = text.toLowerCase();
 
@@ -682,12 +686,12 @@ function findCommodity(text: string): string | null {
   );
 
   for (const commodity of ordered) {
-    const re = new RegExp(
+    const pattern = new RegExp(
       `\\b${escapeRegExp(commodity)}\\b`,
       'i',
     );
 
-    if (re.test(lower)) {
+    if (pattern.test(lower)) {
       return commodity;
     }
   }
@@ -695,29 +699,29 @@ function findCommodity(text: string): string | null {
   return null;
 }
 
-/**
- * Finds country mentions while preserving their position in the command.
- *
- * This is important because comparison parsing needs ordered entities:
- *   Russia ... Kazakhstan ... Afghanistan
- */
+/* -------------------------------------------------------------------------- */
+/* COUNTRY DETECTION                                                          */
+/* -------------------------------------------------------------------------- */
+
 function findCountryMatches(text: string): CountryMatch[] {
   const lower = text.toLowerCase();
-  const aliases = Object.keys(COUNTRY_ALIASES);
 
   const searchTerms = [
     ...COUNTRIES,
-    ...aliases,
+    ...Object.keys(COUNTRY_ALIASES),
   ].sort((a, b) => b.length - a.length);
 
   const matches: CountryMatch[] = [];
 
   for (const term of searchTerms) {
-    const re = new RegExp(`\\b${escapeRegExp(term)}\\b`, 'gi');
+    const pattern = new RegExp(
+      `\\b${escapeRegExp(term)}\\b`,
+      'gi',
+    );
 
     let match: RegExpExecArray | null;
 
-    while ((match = re.exec(lower)) !== null) {
+    while ((match = pattern.exec(lower)) !== null) {
       const canonical =
         COUNTRY_ALIASES[term] ??
         titleCase(term);
@@ -730,13 +734,16 @@ function findCountryMatches(text: string): CountryMatch[] {
     }
   }
 
-  /**
-   * Remove duplicates caused by overlapping aliases:
-   * "United States" + "US", etc.
-   */
   matches.sort((a, b) => {
-    if (a.start !== b.start) return a.start - b.start;
-    return (b.end - b.start) - (a.end - a.start);
+    if (a.start !== b.start) {
+      return a.start - b.start;
+    }
+
+    return (
+      b.end -
+      b.start -
+      (a.end - a.start)
+    );
   });
 
   const accepted: CountryMatch[] = [];
@@ -753,28 +760,34 @@ function findCountryMatches(text: string): CountryMatch[] {
     }
   }
 
-  return accepted.sort((a, b) => a.start - b.start);
+  return accepted.sort(
+    (a, b) => a.start - b.start,
+  );
 }
 
 function findCountries(text: string): string[] {
   const matches = findCountryMatches(text);
-  const found: string[] = [];
+  const result: string[] = [];
 
   for (const match of matches) {
-    if (!found.some(
+    const exists = result.some(
       (country) =>
-        country.toLowerCase() === match.canonical.toLowerCase(),
-    )) {
-      found.push(match.canonical);
+        country.toLowerCase() ===
+        match.canonical.toLowerCase(),
+    );
+
+    if (!exists) {
+      result.push(match.canonical);
     }
   }
 
-  return found;
+  return result;
 }
 
-/**
- * Finds a known city/market center.
- */
+/* -------------------------------------------------------------------------- */
+/* CITY DETECTION                                                             */
+/* -------------------------------------------------------------------------- */
+
 function findCity(text: string): CityHit | null {
   const lower = text.toLowerCase();
 
@@ -783,14 +796,14 @@ function findCity(text: string): CityHit | null {
   );
 
   for (const city of cityNames) {
-    const re = new RegExp(
+    const pattern = new RegExp(
       `\\b${escapeRegExp(city)}\\b`,
       'i',
     );
 
-    if (re.test(lower)) {
+    if (pattern.test(lower)) {
       return {
-        city: titleCase(city.replace(/_/g, ' ')),
+        city: titleCase(city),
         country: CITIES[city],
       };
     }
@@ -799,16 +812,14 @@ function findCity(text: string): CityHit | null {
   return null;
 }
 
-/**
- * Currency extraction.
- */
+/* -------------------------------------------------------------------------- */
+/* CURRENCY DETECTION                                                         */
+/* -------------------------------------------------------------------------- */
+
 function findCurrencies(text: string): string[] {
   const lower = text.toLowerCase();
   const found: string[] = [];
 
-  /**
-   * Explicit FX pair, e.g. USD/AFN.
-   */
   const pairMatch = lower.match(
     /\b([a-z]{3})\s*\/\s*([a-z]{3})\b/i,
   );
@@ -818,18 +829,17 @@ function findCurrencies(text: string): string[] {
     found.push(pairMatch[2].toUpperCase());
   }
 
-  /**
-   * Explicit currency codes.
-   */
   for (const key of Object.keys(CURRENCIES)) {
-    if (key.length !== 3) continue;
+    if (key.length !== 3) {
+      continue;
+    }
 
-    const re = new RegExp(
+    const pattern = new RegExp(
       `\\b${escapeRegExp(key)}\\b`,
       'i',
     );
 
-    if (re.test(lower)) {
+    if (pattern.test(lower)) {
       found.push(CURRENCIES[key]);
     }
   }
@@ -837,46 +847,66 @@ function findCurrencies(text: string): string[] {
   return [...new Set(found)];
 }
 
-/**
- * Period detector.
- */
+/* -------------------------------------------------------------------------- */
+/* PERIOD                                                                     */
+/* -------------------------------------------------------------------------- */
+
 function detectPeriod(text: string): string {
   const lower = text.toLowerCase();
 
   if (
-    /\btoday\b|\bnow\b|\bdaily\b|\bcurrent\b/.test(lower)
+    /\btoday\b|\bnow\b|\bdaily\b|\bcurrent\b/.test(
+      lower,
+    )
   ) {
     return 'today';
   }
 
-  if (/\bweek\b|\bweekly\b/.test(lower)) {
+  if (
+    /\bweek\b|\bweekly\b/.test(
+      lower,
+    )
+  ) {
     return '7days';
   }
 
-  if (/\bmonth\b|\bmonthly\b/.test(lower)) {
+  if (
+    /\bmonth\b|\bmonthly\b/.test(
+      lower,
+    )
+  ) {
     return '30days';
   }
 
-  if (/\bquarter\b|\bquarterly\b/.test(lower)) {
+  if (
+    /\bquarter\b|\bquarterly\b/.test(
+      lower,
+    )
+  ) {
     return '90days';
   }
 
-  if (/\byear\b|\byearly\b|\bannual\b/.test(lower)) {
+  if (
+    /\byear\b|\byearly\b|\bannual\b/.test(
+      lower,
+    )
+  ) {
     return '365days';
   }
 
   return 'today';
 }
 
-/**
- * Objective detector.
- *
- * Comparison is evaluated before generic "market", "price", or "import"
- * language so it cannot accidentally become an import workflow.
- */
+/* -------------------------------------------------------------------------- */
+/* OBJECTIVE                                                                  */
+/* -------------------------------------------------------------------------- */
+
 function detectObjective(text: string): string {
   const lower = text.toLowerCase();
 
+  // Comparison must be detected FIRST.
+  // This prevents "compare ... import ..." from becoming
+  // an import workflow.
   if (
     /\bcompare\b|\bcomparison\b|\bversus\b|\bvs\.?\b|\bbetween\b/.test(
       lower,
@@ -928,160 +958,150 @@ function detectObjective(text: string): string {
   return 'market_analysis';
 }
 
-  if (
-    /\bshould\s+we\s+import\b|
-     \bimport\s+feasibility\b|
-     \bimport\s+research\b|
-     \bshould.*\bimport\b/i.test(lower)
-  ) {
-    return 'import_feasibility';
-  }
+/* -------------------------------------------------------------------------- */
+/* COMPARISON CONTEXT                                                         */
+/* -------------------------------------------------------------------------- */
 
-  if (
-    /\bimport\b.*\bfrom\b|
-     \bimports?\b|
-     \bimporting\b/i.test(lower)
-  ) {
-    return 'import_research';
-  }
-
-  if (
-    /\breport\b|
-     \bweekly\b|
-     \bdaily\b|
-     \bmonthly\b/i.test(lower)
-  ) {
-    return 'report';
-  }
-
-  if (
-    /\bfx\b|
-     \bcurrency\b|
-     \bexchange\s+rate\b|
-     \baffect\b.*\b(wheat|flour|oil|rice|commodity)\b/i.test(lower)
-  ) {
-    return 'fx_impact';
-  }
-
-  if (
-    /\banalyze\b|
-     \banalysis\b|
-     \bmarket\b|
-     \bprices?\b|
-     \bprice\b/i.test(lower)
-  ) {
-    return 'market_analysis';
-  }
-
-  return 'market_analysis';
-}
-
-/**
- * Extracts an explicitly stated country/city market context.
- *
- * Supported examples:
- *   "... for Afghanistan"
- *   "... for the Afghanistan market"
- *   "... in Kabul"
- *   "... for Kabul"
- *
- * We deliberately DO NOT interpret every "in X" as context because:
- *   "prices in Russia and Kazakhstan"
- * contains the actual comparison markets.
- */
 function detectComparisonContext(
   text: string,
   cityHit: CityHit | null,
-  countryMatches: CountryMatch[],
 ): string | null {
-  /**
-   * A city is always safe to use as geographic context.
-   */
+  // A city is an explicit market context.
   if (cityHit) {
     return cityHit.country;
   }
 
-  const lower = text.toLowerCase();
+  // Explicit:
+  // "... for Afghanistan"
+  // "... for the Afghanistan market"
+  const marketPattern =
+    /\bfor\s+(?:the\s+)?([a-z][a-z\s-]*?)(?:\s+market)?(?:[.!?,;:]|$)/i;
 
-  /**
-   * Prefer explicit "for <country>" or
-   * "for the <country> market".
-   */
-  const explicitForPatterns = [
-    /\bfor\s+(?:the\s+)?([a-z][a-z\s-]+?)\s+market\b/i,
-    /\bfor\s+(?:the\s+)?([a-z][a-z\s-]+?)\b/i,
-  ];
+  const match = marketPattern.exec(text);
 
-  for (const pattern of explicitForPatterns) {
-    const match = pattern.exec(text);
-
-    if (!match) continue;
-
-    const rawContext = match[1]
+  if (match) {
+    const candidate = match[1]
       .trim()
-      .replace(/[.,!?;:]$/, '')
       .toLowerCase();
 
-    const canonical = canonicalCountry(rawContext);
+    const country = canonicalCountry(candidate);
 
-    if (canonical) {
-      return canonical;
-    }
-  }
-
-  /**
-   * Fallback:
-   * If "for <country>" was not matched because punctuation or wording
-   * was unusual, inspect country occurrences that appear near the end
-   * of the command after a comparison phrase.
-   */
-  const compareMatch =
-    /\b(?:compare|comparison|versus|vs\.?|between)\b/i.exec(lower);
-
-  if (compareMatch) {
-    const afterComparison = lower.slice(compareMatch.index);
-
-    const hasExplicitContextWord =
-      /\bfor\b|\bwithin\b|\bacross\b/i.test(afterComparison);
-
-    if (hasExplicitContextWord) {
-      const lastCountry = countryMatches[countryMatches.length - 1];
-
-      if (lastCountry) {
-        const beforeLast = lower.slice(
-          lastCountry.start,
-          lastCountry.end,
-        );
-
-        if (beforeLast) {
-          return lastCountry.canonical;
-        }
-      }
+    if (country) {
+      return country;
     }
   }
 
   return null;
 }
 
-/**
- * Extracts the import route for non-comparison commands.
- *
- * Examples:
- *   from Russia to Afghanistan
- *   from Russia into Afghanistan
- *   Russia -> Afghanistan
- *
- * Comparison commands are explicitly excluded from this logic.
- */
+/* -------------------------------------------------------------------------- */
+/* COMPARISON MARKETS                                                         */
+/* -------------------------------------------------------------------------- */
+
+function detectComparisonMarkets(
+  text: string,
+  countryMatches: CountryMatch[],
+  comparisonContext: string | null,
+): string[] {
+  const uniqueCountries: string[] = [];
+
+  for (const match of countryMatches) {
+    const country = match.canonical;
+
+    const alreadyAdded = uniqueCountries.some(
+      (existing) =>
+        existing.toLowerCase() ===
+        country.toLowerCase(),
+    );
+
+    if (!alreadyAdded) {
+      uniqueCountries.push(country);
+    }
+  }
+
+  // Context country is NOT a comparison market.
+  const candidates = uniqueCountries.filter(
+    (country) =>
+      !comparisonContext ||
+      country.toLowerCase() !==
+        comparisonContext.toLowerCase(),
+  );
+
+  /**
+   * Explicit forms:
+   *
+   * between Russia and Kazakhstan
+   * Russia vs Kazakhstan
+   * Russia versus Kazakhstan
+   */
+  const explicitPatterns = [
+    /\bbetween\s+([a-z][a-z\s-]+?)\s+(?:and|&)\s+([a-z][a-z\s-]+?)(?=$|[.,!?;:]|\s+for\b|\s+in\b)/i,
+
+    /\b([a-z][a-z\s-]+?)\s+(?:vs\.?|versus)\s+([a-z][a-z\s-]+?)(?=$|[.,!?;:]|\s+for\b|\s+in\b)/i,
+
+    /\b([a-z][a-z\s-]+?)\s+(?:and|&)\s+([a-z][a-z\s-]+?)(?=$|[.,!?;:]|\s+for\b|\s+in\b)/i,
+  ];
+
+  for (const pattern of explicitPatterns) {
+    const match = pattern.exec(text);
+
+    if (!match) {
+      continue;
+    }
+
+    const left = canonicalCountry(
+      match[1].trim(),
+    );
+
+    const right = canonicalCountry(
+      match[2].trim(),
+    );
+
+    if (
+      left &&
+      right &&
+      left.toLowerCase() !==
+        right.toLowerCase()
+    ) {
+      const pair = [left, right].filter(
+        (country) =>
+          !comparisonContext ||
+          country.toLowerCase() !==
+            comparisonContext.toLowerCase(),
+      );
+
+      if (pair.length >= 2) {
+        return pair.slice(0, 2);
+      }
+    }
+  }
+
+  /**
+   * Generic fallback:
+   *
+   * Russia, Kazakhstan, Afghanistan
+   * -> Russia, Kazakhstan
+   *
+   * This is safe because the context country has already
+   * been excluded.
+   */
+  return candidates.slice(0, 2);
+}
+
+/* -------------------------------------------------------------------------- */
+/* IMPORT ROUTE                                                               */
+/* -------------------------------------------------------------------------- */
+
 function detectImportRoute(
   text: string,
-  countries: string[],
   countryMatches: CountryMatch[],
   isComparison: boolean,
 ): {
   origin: string | null;
   destination: string | null;
 } {
+  // CRITICAL:
+  // A comparison is never an import route.
   if (isComparison) {
     return {
       origin: null,
@@ -1092,17 +1112,22 @@ function detectImportRoute(
   const normalized = normalizeText(text);
 
   /**
-   * Strong explicit route patterns.
+   * Strong explicit route:
+   * from Russia to Afghanistan
+   * from Russia into Afghanistan
    */
-  const routePatterns = [
-    /\bfrom\s+([a-z][a-z\s-]+?)\s+(?:to|into|toward|towards)\s+([a-z][a-z\s-]+?)(?=$|[.,!?;])/i,
+  const explicitRoutePatterns = [
+    /\bfrom\s+([a-z][a-z\s-]+?)\s+(?:to|into|toward|towards)\s+([a-z][a-z\s-]+?)(?=$|[.,!?;:]|\s+for\b|\s+with\b)/i,
+
     /\bfrom\s+([a-z][a-z\s-]+?)\s+(?:to|into|toward|towards)\s+([a-z][a-z\s-]+)/i,
   ];
 
-  for (const pattern of routePatterns) {
+  for (const pattern of explicitRoutePatterns) {
     const match = pattern.exec(normalized);
 
-    if (!match) continue;
+    if (!match) {
+      continue;
+    }
 
     const origin = canonicalCountry(
       match[1].trim(),
@@ -1120,16 +1145,17 @@ function detectImportRoute(
     }
   }
 
-  /**
-   * Fall back to ordered country mentions ONLY when the command clearly
-   * expresses an import route.
-   */
   const lower = normalized.toLowerCase();
 
-  const importIntent =
-    /\bimport\b|\bimports\b|\bimporting\b|\bimported\b/i.test(lower);
+  const isImportCommand =
+    /\bimport\b|\bimports\b|\bimporting\b|\bimported\b/.test(
+      lower,
+    );
 
-  if (!importIntent || countryMatches.length < 2) {
+  if (
+    !isImportCommand ||
+    countryMatches.length < 2
+  ) {
     return {
       origin: null,
       destination: null,
@@ -1140,59 +1166,72 @@ function detectImportRoute(
   const toIndex = lower.indexOf(' to ');
   const intoIndex = lower.indexOf(' into ');
 
-  const routeEndCandidates = [
+  const routeEndIndexes = [
     toIndex,
     intoIndex,
-  ].filter((index) => index !== -1);
+  ].filter(
+    (index) => index !== -1,
+  );
 
   const routeEnd =
-    routeEndCandidates.length > 0
-      ? Math.min(...routeEndCandidates)
+    routeEndIndexes.length > 0
+      ? Math.min(...routeEndIndexes)
       : -1;
 
   if (fromIndex !== -1) {
-    const originSegment = lower.slice(
-      fromIndex,
-      routeEnd > fromIndex ? routeEnd : lower.length,
-    );
+    const originStart = fromIndex;
 
-    const originMatch = countryMatches.find((match) =>
-      originSegment.includes(
-        lower.slice(match.start, match.end),
-      ),
-    );
+    const originEnd =
+      routeEnd > fromIndex
+        ? routeEnd
+        : lower.length;
+
+    const originMatch =
+      countryMatches.find(
+        (match) =>
+          match.start >= originStart &&
+          match.end <= originEnd,
+      );
 
     const destinationMatch =
       routeEnd > fromIndex
         ? countryMatches.find(
-            (match) => match.start >= routeEnd,
+            (match) =>
+              match.start >= routeEnd,
           )
         : null;
 
     return {
-      origin: originMatch?.canonical ?? null,
-      destination: destinationMatch?.canonical ?? null,
+      origin:
+        originMatch?.canonical ??
+        null,
+
+      destination:
+        destinationMatch?.canonical ??
+        null,
     };
   }
 
   /**
-   * Last fallback for explicit "A to B" route syntax.
+   * Fallback for:
+   * Russia to Afghanistan
    */
-  if (routeEndCandidates.length > 0) {
-    const routeEnd = Math.min(...routeEndCandidates);
-
+  if (routeEnd !== -1) {
     const before = countryMatches.filter(
-      (match) => match.end <= routeEnd,
+      (match) =>
+        match.end <= routeEnd,
     );
 
     const after = countryMatches.filter(
-      (match) => match.start >= routeEnd,
+      (match) =>
+        match.start >= routeEnd,
     );
 
     return {
       origin:
         before.length > 0
-          ? before[before.length - 1].canonical
+          ? before[before.length - 1]
+              .canonical
           : null,
 
       destination:
@@ -1208,103 +1247,14 @@ function detectImportRoute(
   };
 }
 
-/**
- * Extract comparison markets independently from import route.
- *
- * Priority:
- * 1. Explicit comparison syntax.
- * 2. Country mentions excluding market context.
- *
- * Supported:
- *   Russia and Kazakhstan
- *   Russia vs Kazakhstan
- *   Russia versus Kazakhstan
- *   Russia with Kazakhstan
- *   between Russia and Kazakhstan
- */
-function detectComparisonMarkets(
-  text: string,
-  countryMatches: CountryMatch[],
-  comparisonContext: string | null,
-): string[] {
-  const lower = text.toLowerCase();
+/* -------------------------------------------------------------------------- */
+/* PARSER                                                                     */
+/* -------------------------------------------------------------------------- */
 
-  /**
-   * Remove the context country before selecting comparison candidates.
-   */
-  const candidates = countryMatches
-    .map((match) => match.canonical)
-    .filter(
-      (country, index, all) =>
-        all.findIndex(
-          (c) => c.toLowerCase() === country.toLowerCase(),
-        ) === index,
-    )
-    .filter(
-      (country) =>
-        !comparisonContext ||
-        country.toLowerCase() !== comparisonContext.toLowerCase(),
-    );
-
-  /**
-   * Explicit pair structure.
-   */
-  const comparisonPairPatterns = [
-    /\bbetween\b[\s\S]*?\b([a-z][a-z\s-]+?)\s+(?:and|&)\s+([a-z][a-z\s-]+?)(?=$|[.,!?;]|\s+for\b|\s+in\b)/i,
-
-    /\b([a-z][a-z\s-]+?)\s+(?:vs\.?|versus)\s+([a-z][a-z\s-]+?)(?=$|[.,!?;]|\s+for\b|\s+in\b)/i,
-
-    /\b([a-z][a-z\s-]+?)\s+(?:and|&)\s+([a-z][a-z\s-]+?)(?=$|[.,!?;]|\s+for\b|\s+in\b)/i,
-  ];
-
-  for (const pattern of comparisonPairPatterns) {
-    const match = pattern.exec(text);
-
-    if (!match) continue;
-
-    const left = canonicalCountry(
-      match[1].trim(),
-    );
-
-    const right = canonicalCountry(
-      match[2].trim(),
-    );
-
-    if (
-      left &&
-      right &&
-      left.toLowerCase() !== right.toLowerCase()
-    ) {
-      return [left, right];
-    }
-  }
-
-  /**
-   * Most reliable generic fallback:
-   *
-   * The first two distinct countries that are not the context
-   * are the comparison markets.
-   *
-   * Example:
-   * Russia, Kazakhstan, Afghanistan
-   * -> Russia, Kazakhstan
-   */
-  return candidates.slice(0, 2);
-}
-
-/**
- * Adds currency for known country.
- */
-function currencyForCountry(country: string | null): string | null {
-  if (!country) return null;
-
-  return CURRENCIES[country.toLowerCase()] ?? null;
-}
-
-export function parseCommand(raw: string): ParsedIntent {
+export function parseCommand(
+  raw: string,
+): ParsedIntent {
   const text = normalizeText(raw);
-
-  const assumptions: string[] = [];
 
   if (!text) {
     return {
@@ -1316,93 +1266,109 @@ export function parseCommand(raw: string): ParsedIntent {
       currencies: ['USD'],
       period: 'today',
       objective: 'market_analysis',
-      assumptions: ['Empty command — no market scope detected.'],
+      assumptions: [
+        'Empty command — no market scope detected.',
+      ],
       raw: '',
     };
   }
 
+  const assumptions: string[] = [];
+
   const commodity = findCommodity(text);
   const cityHit = findCity(text);
-  const countryMatches = findCountryMatches(text);
+  const countryMatches =
+    findCountryMatches(text);
   const countries = findCountries(text);
-  const currencyHits = findCurrencies(text);
+  const currencyHits =
+    findCurrencies(text);
 
-  const objective = detectObjective(text);
-  const period = detectPeriod(text);
+  const objective =
+    detectObjective(text);
 
-  const isComparison = objective === 'compare';
+  const period =
+    detectPeriod(text);
 
-  /**
-   * ============================================================
-   * COMPARISON
-   * ============================================================
-   */
+  const isComparison =
+    objective === 'compare';
+
+  /* ---------------------------------------------------------------------- */
+  /* COMPARISON                                                              */
+  /* ---------------------------------------------------------------------- */
+
   let comparisonMarkets: string[] = [];
   let comparisonContext: string | null = null;
 
   if (isComparison) {
-    comparisonContext = detectComparisonContext(
-      text,
-      cityHit,
-      countryMatches,
-    );
+    comparisonContext =
+      detectComparisonContext(
+        text,
+        cityHit,
+      );
 
-    comparisonMarkets = detectComparisonMarkets(
-      text,
-      countryMatches,
-      comparisonContext,
-    );
+    comparisonMarkets =
+      detectComparisonMarkets(
+        text,
+        countryMatches,
+        comparisonContext,
+      );
   }
 
+  /* ---------------------------------------------------------------------- */
+  /* IMPORT ROUTE                                                            */
+  /* ---------------------------------------------------------------------- */
+
+  const route =
+    detectImportRoute(
+      text,
+      countryMatches,
+      isComparison,
+    );
+
+  let origin =
+    route.origin;
+
+  let destination =
+    route.destination;
+
   /**
-   * ============================================================
-   * IMPORT ROUTE
-   * ============================================================
+   * For comparison:
    *
-   * For Comparison:
    * origin = null
    * destination = context only
    *
-   * This is the critical separation.
-   */
-  const route = detectImportRoute(
-    text,
-    countries,
-    countryMatches,
-    isComparison,
-  );
-
-  let origin = route.origin;
-  let destination = route.destination;
-
-  /**
-   * Comparison context becomes destination/context for existing
-   * downstream code, but it is NEVER treated as import origin.
+   * Russia/Kazakhstan are NOT treated as an import route.
    */
   if (isComparison) {
     origin = null;
-    destination = comparisonContext;
+    destination =
+      comparisonContext;
   }
 
-  /**
-   * City is independent of route.
-   */
+  /* ---------------------------------------------------------------------- */
+  /* CITY / MARKET                                                           */
+  /* ---------------------------------------------------------------------- */
+
   const city: string | null =
-    cityHit?.city ?? null;
+    cityHit?.city ??
+    null;
 
   const market: string | null =
-    city ? `${city} Market` : null;
+    city
+      ? `${city} Market`
+      : null;
 
-  /**
-   * If a city is present, its country is a geographic context.
-   */
-  if (cityHit && !destination) {
-    destination = cityHit.country;
+  if (
+    cityHit &&
+    !destination
+  ) {
+    destination =
+      cityHit.country;
   }
 
   /**
-   * If only one country is present and this isn't a comparison
-   * or explicit route, treat it as a destination/context.
+   * Single-country non-comparison command:
+   * "Analyze wheat market in Afghanistan."
    */
   if (
     countries.length === 1 &&
@@ -1410,44 +1376,46 @@ export function parseCommand(raw: string): ParsedIntent {
     !origin &&
     !isComparison
   ) {
-    destination = countries[0];
+    destination =
+      countries[0];
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* CURRENCIES                                                              */
+  /* ---------------------------------------------------------------------- */
+
+  let currencies = [
+    ...currencyHits,
+  ];
+
+  const addCurrency =
+    (country: string | null) => {
+      const currency =
+        currencyForCountry(country);
+
+      if (
+        currency &&
+        !currencies.includes(currency)
+      ) {
+        currencies.push(currency);
+      }
+    };
+
+  addCurrency(origin);
+  addCurrency(destination);
+
+  for (
+    const comparisonMarket
+    of comparisonMarkets
+  ) {
+    addCurrency(
+      comparisonMarket,
+    );
   }
 
   /**
-   * ============================================================
-   * CURRENCIES
-   * ============================================================
-   *
-   * Comparison currencies are gathered independently.
-   */
-  let currencies = [...currencyHits];
-
-  if (origin) {
-    const currency = currencyForCountry(origin);
-
-    if (currency && !currencies.includes(currency)) {
-      currencies.push(currency);
-    }
-  }
-
-  if (destination) {
-    const currency = currencyForCountry(destination);
-
-    if (currency && !currencies.includes(currency)) {
-      currencies.push(currency);
-    }
-  }
-
-  for (const comparisonMarket of comparisonMarkets) {
-    const currency = currencyForCountry(comparisonMarket);
-
-    if (currency && !currencies.includes(currency)) {
-      currencies.push(currency);
-    }
-  }
-
-  /**
-   * USD is a safe global reporting currency.
+   * USD remains the global normalization
+   * currency unless explicitly present.
    */
   if (!currencies.includes('USD')) {
     currencies.push('USD');
@@ -1463,24 +1431,20 @@ export function parseCommand(raw: string): ParsedIntent {
     ),
   ];
 
-  /**
-   * ============================================================
-   * ASSUMPTIONS
-   * ============================================================
-   */
-  if (!commodity) {
-    /**
-     * FX-only and other non-commodity workflows may legitimately
-     * have no commodity.
-     */
-  }
+  /* ---------------------------------------------------------------------- */
+  /* ASSUMPTIONS                                                             */
+  /* ---------------------------------------------------------------------- */
 
   if (isComparison) {
-    if (comparisonMarkets.length >= 2) {
+    if (
+      comparisonMarkets.length >= 2
+    ) {
       assumptions.push(
         `Comparison markets: ${comparisonMarkets[0]} vs ${comparisonMarkets[1]}.`,
       );
-    } else if (comparisonMarkets.length === 1) {
+    } else if (
+      comparisonMarkets.length === 1
+    ) {
       assumptions.push(
         `Only one comparison market detected: ${comparisonMarkets[0]}.`,
       );
@@ -1495,77 +1459,93 @@ export function parseCommand(raw: string): ParsedIntent {
         `Market context: ${comparisonContext}.`,
       );
     }
+
+    if (
+      comparisonMarkets.length >= 2
+    ) {
+      assumptions.push(
+        'Comparison markets are independent market entities, not an import route.',
+      );
+    }
   } else {
-    if (!destination && !origin && !city) {
+    if (
+      !destination &&
+      !origin &&
+      !city
+    ) {
       assumptions.push(
         'No location specified — defaulting to global commodity market context.',
       );
     }
 
-    if (commodity && !origin && !city && !destination) {
+    if (
+      commodity &&
+      !origin &&
+      !city &&
+      !destination
+    ) {
       assumptions.push(
         'No origin or city specified — analyzing global commodity market only.',
       );
     }
   }
 
-  /**
-   * Explicitly document route semantics.
-   */
-  if (
-    isComparison &&
-    comparisonMarkets.length >= 2 &&
-    !origin
-  ) {
-    assumptions.push(
-      'Comparison does not imply an import route between the comparison markets.',
-    );
-  }
+  /* ---------------------------------------------------------------------- */
+  /* RESULT                                                                  */
+  /* ---------------------------------------------------------------------- */
 
-  /**
-   * ============================================================
-   * RETURN
-   * ============================================================
-   *
-   * comparisonMarkets and comparisonContext are additive metadata.
-   * Existing ParsedIntent fields stay intact for backward compatibility.
-   */
-  const parsedIntent: ExtendedParsedIntent = {
-    commodity: commodity
-      ? titleCase(commodity)
-      : null,
+  const parsedIntent =
+    {
+      commodity:
+        commodity
+          ? titleCase(
+              commodity,
+            )
+          : null,
 
-    origin,
-    destination,
+      origin,
+      destination,
 
-    city,
-    market,
+      city,
+      market,
 
-    currencies,
-    period,
-    objective,
-    assumptions,
+      currencies,
+      period,
+      objective,
 
-    raw: text,
+      assumptions,
 
-    comparisonMarkets,
-    comparisonContext,
-  };
+      raw: text,
+
+      comparisonMarkets,
+      comparisonContext,
+    } as ExtendedParsedIntent;
 
   return parsedIntent;
 }
 
+/* -------------------------------------------------------------------------- */
+/* INTENT LABEL                                                               */
+/* -------------------------------------------------------------------------- */
+
 export function intentLabel(
   intent: ParsedIntent,
 ): string {
-  const extended = intent as ExtendedParsedIntent;
+  const extended =
+    intent as ExtendedParsedIntent;
 
   const parts: string[] = [];
 
   if (intent.commodity) {
-    parts.push(intent.commodity);
+    parts.push(
+      intent.commodity,
+    );
   }
 
+  /**
+   * Comparison takes precedence over
+   * origin/destination display.
+   */
   if (
     extended.comparisonMarkets &&
     extended.comparisonMarkets.length >= 2
@@ -1575,22 +1555,30 @@ export function intentLabel(
     );
   } else {
     if (intent.origin) {
-      parts.push(`from ${intent.origin}`);
+      parts.push(
+        `from ${intent.origin}`,
+      );
     }
 
     if (intent.destination) {
-      parts.push(`to ${intent.destination}`);
+      parts.push(
+        `to ${intent.destination}`,
+      );
     }
   }
 
   if (intent.city) {
-    parts.push(`in ${intent.city}`);
+    parts.push(
+      `in ${intent.city}`,
+    );
   } else if (
     extended.comparisonContext &&
     extended.comparisonMarkets &&
     extended.comparisonMarkets.length >= 2
   ) {
-    parts.push(`for ${extended.comparisonContext}`);
+    parts.push(
+      `for ${extended.comparisonContext}`,
+    );
   }
 
   if (parts.length === 0) {
