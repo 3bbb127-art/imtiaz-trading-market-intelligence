@@ -228,10 +228,7 @@ const isChangeAmountPhrase =
   /\bdown\s+(?:by|approximately|about)\b/i.test(contextBefore);
 
 const isFinalPriceAfterChange =
-  new RegExp(
-    `\\b(?:to|at)\\s+${escapeRegex(currency.toLowerCase())}\\s*$`,
-    'i',
-  ).test(contextBefore);
+  /\b(?:to|at)\s*$/i.test(contextBefore.trim());
 
 if (isChangeAmountPhrase && !isFinalPriceAfterChange) continue;
       // Determine location from the research text itself — never from user's target city.
