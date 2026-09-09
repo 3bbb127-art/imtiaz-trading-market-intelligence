@@ -343,7 +343,6 @@ const KNOWN_COUNTRIES: Record<string, string> = {
   zambia: 'Zambia',
   zimbabwe: 'Zimbabwe',
   'european union': 'European Union',
-
   usa: 'United States',
   us: 'United States',
   uae: 'United Arab Emirates',
@@ -410,68 +409,6 @@ const KNOWN_CITIES: Record<string, string> = {
   'cape town': 'Cape Town',
   'sao paulo': 'Sao Paulo',
   'buenos aires': 'Buenos Aires',
-};
-
-
-  kabul: 'Afghanistan',
-  'mazar-e-sharif': 'Afghanistan',
-  'mazar-i-sharif': 'Afghanistan',
-  mazar: 'Afghanistan',
-  herat: 'Afghanistan',
-  kandahar: 'Afghanistan',
-  jalalabad: 'Afghanistan',
-  kunduz: 'Afghanistan',
-  karachi: 'Pakistan',
-  lahore: 'Pakistan',
-  islamabad: 'Pakistan',
-  peshawar: 'Pakistan',
-  delhi: 'India',
-  'new delhi': 'India',
-  mumbai: 'India',
-  chennai: 'India',
-  kolkata: 'India',
-  almaty: 'Kazakhstan',
-  astana: 'Kazakhstan',
-  moscow: 'Russia',
-  'saint petersburg': 'Russia',
-  novosibirsk: 'Russia',
-  tashkent: 'Uzbekistan',
-  samarkand: 'Uzbekistan',
-  dubai: 'United Arab Emirates',
-  'abu dhabi': 'United Arab Emirates',
-  tehran: 'Iran',
-  mashhad: 'Iran',
-  istanbul: 'Turkey',
-  ankara: 'Turkey',
-  beijing: 'China',
-  shanghai: 'China',
-  guangzhou: 'China',
-  shenzhen: 'China',
-  london: 'United Kingdom',
-  'new york': 'United States',
-  chicago: 'United States',
-  houston: 'United States',
-  singapore: 'Singapore',
-  jakarta: 'Indonesia',
-  bangkok: 'Thailand',
-  'ho chi minh': 'Vietnam',
-  hanoi: 'Vietnam',
-  seoul: 'South Korea',
-  tokyo: 'Japan',
-  osaka: 'Japan',
-  frankfurt: 'Germany',
-  hamburg: 'Germany',
-  rotterdam: 'Netherlands',
-  paris: 'France',
-  milan: 'Italy',
-  madrid: 'Spain',
-  cairo: 'Egypt',
-  lagos: 'Nigeria',
-  nairobi: 'Kenya',
-  johannesburg: 'South Africa',
-  'cape town': 'South Africa',
-  'sao paulo': 'Brazil',
-  'buenos aires': 'Argentina',
 };
 
 // -----------------------------------------------------------------------------
@@ -682,56 +619,6 @@ function getUsdFxRate(
     rate: null,
     estimated: false,
   };
-}
-
-
-  if (
-    price == null ||
-    !currency ||
-    !unit
-  ) {
-    return null;
-  }
-
-  const fallback =
-    getUsdFxRate(
-      currency,
-      [],
-    ).rate;
-
-  if (
-    fallback == null ||
-    !Number.isFinite(
-      fallback,
-    )
-  ) {
-    return null;
-  }
-
-  const usd =
-    price * fallback;
-
-  switch (
-    unit.toLowerCase()
-  ) {
-    case 'kg':
-    case 'kilo':
-    case 'kilogram':
-      return usd * 1000;
-
-    case 'ton':
-    case 'tonne':
-    case 'mt':
-    case 'metric ton':
-      return usd;
-
-    case 'lb':
-    case 'pound':
-      return usd * 2204.62;
-
-    default:
-      return null;
-  }
 }
 
 function normalizeToUsdPerMtWithFx(
@@ -1578,9 +1465,6 @@ function priceIsAttributableToComparisonMarket(
     return false;
   }
 
-  /**
-   * Direct nearby location has highest confidence.
-   */
   if (
     markets.some((market) =>
       entityMatchesText(
@@ -1592,9 +1476,6 @@ function priceIsAttributableToComparisonMarket(
     return true;
   }
 
-  /**
-   * Also inspect a short local window.
-   */
   const window =
     text.slice(
       Math.max(
@@ -1639,14 +1520,6 @@ function extractPricePointsFromResearch(
       .toISOString()
       .slice(0, 10);
 
-  /**
-   * Handles:
-   * USD 420/MT
-   * USD 420 per MT
-   * $420/MT
-   * €240/MT
-   * £240 per tonne
-   */
   const priceRegex =
     /(?:(USD|EUR|GBP|RUB|KZT|AFN|PKR|INR|CNY|VND|THB|TRY|IRR|AED|JPY|CAD|AUD|CHF|SAR|QAR)\s*([0-9][\d,]*(?:\.\d+)?)|(\$|€|£)\s*([0-9][\d,]*(?:\.\d+)?))(?:(?:\s*[–-]\s*)([0-9][\d,]*(?:\.\d+)?))?\s*(?:per\s+|\/\s*)(kg|kilo|kilogram|ton|tonne|mt|metric ton|bag|lb|pound|litre|liter)\b/gi;
 
@@ -1770,12 +1643,6 @@ function extractPricePointsFromResearch(
           match.index,
         );
 
-      /**
-       * Comparison safety:
-       *
-       * Price MUST be attributable to one of
-       * the requested comparison markets.
-       */
       if (
         isComparison &&
         !priceIsAttributableToComparisonMarket(
@@ -3322,9 +3189,6 @@ export function recommendationEngine(
     points.length > 0 ||
     input.marketRows.length > 0;
 
-  /**
-   * Comparison is a separate decision domain.
-   */
   if (
     isComparisonWorkflow(
       input,
@@ -3335,8 +3199,21 @@ export function recommendationEngine(
         input,
       );
 
+    const distinctLocations =
+      new Set(
+        points
+          .map(
+            (point) =>
+              normalizeText(
+                point.location,
+              ),
+          )
+          .filter(Boolean),
+      );
+
     if (
-      points.length < 2
+      points.length < 2 ||
+      distinctLocations.size < 2
     ) {
       return {
         rec:
@@ -3372,9 +3249,6 @@ export function recommendationEngine(
     };
   }
 
-  /**
-   * Import-route recommendation.
-   */
   if (
     input.origin &&
     input.destination &&
@@ -3839,8 +3713,11 @@ export function dataGapsEngine(
         input,
       );
 
+    const scopedRows =
+      scopeMarketRows(input);
+
     if (
-      input.marketRows.length ===
+      scopedRows.length ===
       0
     ) {
       gaps.push(
@@ -3853,11 +3730,24 @@ export function dataGapsEngine(
         input,
       );
 
+    const priceLocations =
+      new Set(
+        prices
+          .map(
+            (point) =>
+              normalizeText(
+                point.location,
+              ),
+          )
+          .filter(Boolean),
+      );
+
     if (
-      prices.length < 2
+      prices.length < 2 ||
+      priceLocations.size < 2
     ) {
       gaps.push(
-        `Fewer than two directly attributable price observations are available for ${markets[0]} vs ${markets[1]}.`,
+        `Fewer than two distinct directly attributable price observations are available for ${markets[0]} vs ${markets[1]}.`,
       );
     }
 
@@ -4431,10 +4321,6 @@ export function evaluationEngine(
   input: EngineInput,
   findings: ResearchFindings,
 ): EvaluationResult {
-  /**
-   * Defensive guard:
-   * comparison is not an import-opportunity evaluation.
-   */
   if (
     isComparisonWorkflow(
       input,
