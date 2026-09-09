@@ -284,12 +284,39 @@ export function parseCommand(raw: string): ParsedIntent {
     }
   }
 
-  // If "compare X in A and B", treat as comparison with two origins
-  const compareAnd = /\bcompare\b.*\bin\b\s+(.*?)\s+and\s+(.*)/i.exec(text);
-  if (compareAnd && countries.length >= 2) {
-    origin = countries[0];
-    destination = countries[1];
+ 
+  // Comparison commands must not invent an import route.
+// For example:
+//   "Compare wheat prices in Russia and Kazakhstan for Afghanistan."
+// means compare Russia vs Kazakhstan, with Afghanistan as market context.
+// Do not assign Russia/Kazakhstan to origin/destination.
+
+const isComparison = /\bcompare\b/i.test(text);
+
+if (isComparison) {
+  origin = null;
+  destination = null;
+
+  if (cityHit) {
+    destination = cityHit.country;
+  } else if (countries.length > 0) {
+    // A trailing "for X" / "in X" can define the market context.
+    const marketContextMatch =
+      /\b(?:for|in)\s+([a-z][a-z\s]+)$/i.exec(text);
+
+    if (marketContextMatch) {
+      const context = marketContextMatch[1].trim().toLowerCase();
+
+      const matchedContextCountry = countries.find(
+        (c) => c.toLowerCase() === context,
+      );
+
+      if (matchedContextCountry) {
+        destination = matchedContextCountry;
+      }
+    }
   }
+}
 
   // City/market
   const city: string | null = cityHit?.city ?? null;
