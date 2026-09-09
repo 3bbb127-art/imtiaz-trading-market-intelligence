@@ -17,7 +17,6 @@ import type {
   DataStatus,
   Recommendation,
   ResearchProviderResult,
-  FxRate,
   MarketData,
   Shipment,
   StockRecord,
