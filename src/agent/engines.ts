@@ -990,22 +990,40 @@ function freshnessOf(
 // -----------------------------------------------------------------------------
 // Supply / Demand classification
 // -----------------------------------------------------------------------------
-
 function mapSupply(
   row: RawMarketRow,
 ): SupplyLevel | null {
   const value =
-    (
-      row.supply ??
-      ''
-    ).toLowerCase();
+    normalizeText(
+      row.supply,
+    );
 
   if (!value) {
     return null;
   }
 
+  /*
+   * Global-first supply classification.
+   *
+   * Important:
+   * - Match supply-specific phrases.
+   * - Avoid generic words that can describe price, demand, cost,
+   *   sentiment, or logistics.
+   * - Do not depend on any country, city, or commodity.
+   */
+
   if (
-    /critical|severe|acute|crisis|famine|starvation/.test(
+    /\b(
+      critical supply|
+      severe supply shortage|
+      acute supply shortage|
+      supply crisis|
+      critical shortage|
+      severe shortage|
+      acute shortage|
+      famine|
+      starvation
+    )\b/ix.test(
       value,
     )
   ) {
@@ -1013,7 +1031,32 @@ function mapSupply(
   }
 
   if (
-    /shortage|tight|disrupt|low|deplet|scarce|constrain|insufficient|fail|poor harvest|export ban|restriction/.test(
+    /\b(
+      shortage|
+      supply shortage|
+      tight supply|
+      constrained supply|
+      supply disruption|
+      supply disruption(s)?|
+      depleted stocks?|
+      depleted supply|
+      scarce supply|
+      insufficient supply|
+      supply shortfall|
+      supply constraint|
+      constrained availability|
+      limited availability|
+      crop failure|
+      failed harvest|
+      poor harvest|
+      reduced harvest|
+      lower production|
+      declining production|
+      production decline|
+      export ban|
+      export restriction|
+      supply restriction
+    )\b/ix.test(
       value,
     )
   ) {
@@ -1021,7 +1064,34 @@ function mapSupply(
   }
 
   if (
-    /abundant|surplus|oversupply|bumper|record|high production|excess|glut|ample|overproduction/.test(
+    /\b(
+      abundant supply|
+      abundant supplies|
+      surplus supply|
+      supply surplus|
+      oversupply|
+      excess supply|
+      ample supply|
+      ample supplies|
+      high supply|
+      strong supply availability|
+      bumper harvest|
+      record production|
+      record harvest|
+      record crop|
+      high production|
+      excess production|
+      overproduction|
+      increased production|
+      rising production|
+      higher production|
+      good harvest|
+      strong harvest|
+      large stocks?|
+      high stocks?|
+      rising stocks?|
+      ample stocks?
+    )\b/ix.test(
       value,
     )
   ) {
@@ -1029,7 +1099,28 @@ function mapSupply(
   }
 
   if (
-    /adequate|sufficient|normal|stable|steady|available|in stock/.test(
+    /\b(
+      adequate supply|
+      adequate supplies|
+      sufficient supply|
+      sufficient supplies|
+      normal supply|
+      stable supply|
+      steady supply|
+      balanced supply|
+      supply remains stable|
+      supply is stable|
+      supply is normal|
+      supply is adequate|
+      supply is sufficient|
+      normal availability|
+      stable availability|
+      steady availability|
+      adequate availability|
+      sufficient availability|
+      available stocks?|
+      stocks? (?:normal|stable|adequate|sufficient)
+    )\b/ix.test(
       value,
     )
   ) {
@@ -1043,17 +1134,38 @@ function mapDemand(
   row: RawMarketRow,
 ): DemandLevel | null {
   const value =
-    (
-      row.demand ??
-      ''
-    ).toLowerCase();
+    normalizeText(
+      row.demand,
+    );
 
   if (!value) {
     return null;
   }
 
+  /*
+   * Global-first demand classification.
+   *
+   * Only demand-specific phrases are accepted.
+   * Generic words such as "high", "low", or "rising" alone are
+   * intentionally rejected because they may describe another signal.
+   */
+
   if (
-    /surg|soaring|skyrocket|explosive|spike/.test(
+    /\b(
+      surging demand|
+      surge in demand|
+      demand surge|
+      soaring demand|
+      explosive demand|
+      sky-high demand|
+      exceptionally strong demand|
+      sharp increase in demand|
+      spike in demand|
+      demand is surging|
+      demand is soaring|
+      demand surged|
+      demand spiked
+    )\b/ix.test(
       value,
     )
   ) {
@@ -1061,7 +1173,40 @@ function mapDemand(
   }
 
   if (
-    /strong|robust|high|increasing|rising|growing|grew/.test(
+    /\b(
+      strong demand|
+      robust demand|
+      high demand|
+      rising demand|
+      increasing demand|
+      growing demand|
+      increased demand|
+      demand is strong|
+      demand is robust|
+      demand remains strong|
+      demand increased|
+      demand rising|
+      demand grew|
+      demand growth|
+      rising consumption|
+      increasing consumption|
+      growing consumption|
+      increased consumption|
+      higher consumption|
+      strong buying|
+      strong purchases|
+      increased buying activity|
+      stronger buying activity|
+      increased import demand|
+      rising import demand|
+      strong import demand|
+      increased household demand|
+      strong household demand|
+      rising household demand|
+      increased industrial demand|
+      strong industrial demand|
+      rising industrial demand
+    )\b/ix.test(
       value,
     )
   ) {
@@ -1069,7 +1214,35 @@ function mapDemand(
   }
 
   if (
-    /weak|low|declining|falling|dropping|sluggish|soft|reduced/.test(
+    /\b(
+      weak demand|
+      low demand|
+      declining demand|
+      falling demand|
+      dropping demand|
+      reduced demand|
+      weaker demand|
+      sluggish demand|
+      soft demand|
+      demand is weak|
+      demand is low|
+      demand remains weak|
+      demand declined|
+      demand decreased|
+      demand fell|
+      demand dropped|
+      lower demand|
+      falling consumption|
+      declining consumption|
+      reduced consumption|
+      lower consumption|
+      weak buying|
+      weak purchases|
+      reduced buying activity|
+      weaker buying activity|
+      reduced import demand|
+      falling import demand
+    )\b/ix.test(
       value,
     )
   ) {
@@ -1077,7 +1250,23 @@ function mapDemand(
   }
 
   if (
-    /normal|stable|steady|moderate/.test(
+    /\b(
+      normal demand|
+      stable demand|
+      steady demand|
+      moderate demand|
+      balanced demand|
+      demand is normal|
+      demand is stable|
+      demand is steady|
+      demand remains stable|
+      demand remains steady|
+      demand stayed stable|
+      demand stayed steady|
+      stable consumption|
+      steady consumption|
+      moderate consumption
+    )\b/ix.test(
       value,
     )
   ) {
@@ -1086,7 +1275,6 @@ function mapDemand(
 
   return null;
 }
-
 function classifySupplyFromText(
   text: string,
 ): SupplyLevel | null {
