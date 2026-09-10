@@ -2333,17 +2333,320 @@ export function supplyDemandEngine(
   evidence: string;
   conflicts: string[];
 } {
+  const evidence: string[] = [];
+  const conflicts: string[] = [];
+
+  const comparison =
+    isComparisonWorkflow(input);
+
+  const markets =
+    comparison
+      ? comparisonMarkets(input)
+      : [];
+
+  /**
+   * ---------------------------------------------------------------------------
+   * Helper: classify research signals only for one specific market.
+   *
+   * A comparison market must have its own evidence. Evidence mentioning
+   * another country must not automatically become evidence for this market.
+   * ---------------------------------------------------------------------------
+   */
+  const signalsForMarket = (
+    market: string,
+    results: ResearchProviderResult[],
+  ): {
+    supplySignals: ResearchSignal[];
+    demandSignals: ResearchSignal[];
+  } => {
+    const supplySignals: ResearchSignal[] = [];
+    const demandSignals: ResearchSignal[] = [];
+
+    for (
+      const result of results
+    ) {
+      const text =
+        `${result.title} ${result.snippet}`;
+
+      const locations =
+        locationsInText(text);
+
+      const marketLocation =
+        locations.find(
+          (location) =>
+            entityMatchesText(
+              market,
+              location.name,
+            ),
+        );
+
+      if (!marketLocation) {
+        continue;
+      }
+
+      /**
+       * Only inspect a local evidence window around the market mention.
+       * This reduces cross-country contamination in multi-country articles.
+       */
+      const start =
+        Math.max(
+          0,
+          marketLocation.index - 180,
+        );
+
+      const end =
+        Math.min(
+          text.length,
+          marketLocation.index + 320,
+        );
+
+      const localText =
+        text.slice(
+          start,
+          end,
+        );
+
+      const supply =
+        classifySupplyFromText(
+          localText,
+        );
+
+      if (supply) {
+        supplySignals.push({
+          level: supply,
+          source:
+            result.title ||
+            result.url,
+          url:
+            result.url,
+          confidence:
+            supply === 'Normal'
+              ? 'MEDIUM'
+              : 'LOW',
+        });
+      }
+
+      const demand =
+        classifyDemandFromText(
+          localText,
+        );
+
+      if (demand) {
+        demandSignals.push({
+          level: demand,
+          source:
+            result.title ||
+            result.url,
+          url:
+            result.url,
+          confidence:
+            demand === 'Normal'
+              ? 'MEDIUM'
+              : 'LOW',
+        });
+      }
+    }
+
+    return {
+      supplySignals,
+      demandSignals,
+    };
+  };
+
+  /**
+   * ---------------------------------------------------------------------------
+   * Comparison mode
+   * ---------------------------------------------------------------------------
+   *
+   * For comparisons we deliberately keep the final public engine contract
+   * backward-compatible (one supply + one demand value), but the evidence is
+   * resolved per market first.
+   *
+   * This prevents a statement about India from being copied into Pakistan,
+   * or vice versa.
+   * ---------------------------------------------------------------------------
+   */
+  if (
+    comparison &&
+    markets.length >= 2
+  ) {
+    const marketAssessments =
+      markets.map(
+        (market) => {
+          const scopedResults =
+            input.researchResults.filter(
+              (result) =>
+                researchResultMatchesMarket(
+                  result,
+                  market,
+                ),
+            );
+
+          const {
+            supplySignals,
+            demandSignals,
+          } =
+            signalsForMarket(
+              market,
+              scopedResults,
+            );
+
+          const supplyResolved =
+            resolveSignals(
+              supplySignals,
+              'supply',
+            );
+
+          const demandResolved =
+            resolveSignals(
+              demandSignals,
+              'demand',
+            );
+
+          return {
+            market,
+            supply:
+              supplyResolved.level as SupplyLevel,
+            demand:
+              demandResolved.level as DemandLevel,
+            supplyEvidence:
+              supplyResolved.evidence,
+            demandEvidence:
+              demandResolved.evidence,
+            supplyConflict:
+              supplyResolved.conflict,
+            demandConflict:
+              demandResolved.conflict,
+          };
+        },
+      );
+
+    /**
+     * Build market-specific evidence first.
+     */
+    for (
+      const assessment
+      of marketAssessments
+    ) {
+      evidence.push(
+        `${assessment.market} — Supply: ${assessment.supply}.`,
+      );
+
+      evidence.push(
+        `${assessment.market} — Demand: ${assessment.demand}.`,
+      );
+
+      evidence.push(
+        ...assessment.supplyEvidence,
+      );
+
+      evidence.push(
+        ...assessment.demandEvidence,
+      );
+
+      if (
+        assessment.supplyConflict
+      ) {
+        conflicts.push(
+          `${assessment.market}: conflicting supply evidence.`,
+        );
+      }
+
+      if (
+        assessment.demandConflict
+      ) {
+        conflicts.push(
+          `${assessment.market}: conflicting demand evidence.`,
+        );
+      }
+    }
+
+    /**
+     * We only publish a single aggregate supply/demand value when both
+     * comparison markets agree.
+     *
+     * This is conservative and avoids pretending one market represents both.
+     */
+    const supplyLevels =
+      marketAssessments.map(
+        (assessment) =>
+          assessment.supply,
+      );
+
+    const demandLevels =
+      marketAssessments.map(
+        (assessment) =>
+          assessment.demand,
+      );
+
+    const uniqueSupply =
+      [
+        ...new Set(
+          supplyLevels,
+        ),
+      ];
+
+    const uniqueDemand =
+      [
+        ...new Set(
+          demandLevels,
+        ),
+      ];
+
+    const supply =
+      uniqueSupply.length ===
+        1 &&
+      uniqueSupply[0] !==
+        'Unknown'
+        ? uniqueSupply[0]
+        : 'Unknown';
+
+    const demand =
+      uniqueDemand.length ===
+        1 &&
+      uniqueDemand[0] !==
+        'Unknown'
+        ? uniqueDemand[0]
+        : 'Unknown';
+
+    if (
+      uniqueSupply.length > 1
+    ) {
+      conflicts.push(
+        `Comparison markets have different supply assessments: ${markets[0]} vs ${markets[1]}. Aggregate supply is therefore reported as Unknown.`,
+      );
+    }
+
+    if (
+      uniqueDemand.length > 1
+    ) {
+      conflicts.push(
+        `Comparison markets have different demand assessments: ${markets[0]} vs ${markets[1]}. Aggregate demand is therefore reported as Unknown.`,
+      );
+    }
+
+    return {
+      supply,
+      demand,
+      evidence:
+        evidence.length > 0
+          ? evidence.join('; ')
+          : INSUFFICIENT,
+      conflicts,
+    };
+  }
+
+  /**
+   * ---------------------------------------------------------------------------
+   * Standard non-comparison mode
+   * ---------------------------------------------------------------------------
+   */
+
   let supply:
     SupplyLevel = 'Unknown';
 
   let demand:
     DemandLevel = 'Unknown';
-
-  const evidence:
-    string[] = [];
-
-  const conflicts:
-    string[] = [];
 
   const relevantRows =
     input.commodity
@@ -2459,7 +2762,6 @@ export function supplyDemandEngine(
     conflicts,
   };
 }
-
 // -----------------------------------------------------------------------------
 // Demand intelligence
 // -----------------------------------------------------------------------------
