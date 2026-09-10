@@ -1417,80 +1417,89 @@ function locationNearPrice(
     return null;
   }
 
-  const maxDistance =
-    120;
-
   /**
-   * Only a location that is very close to the price is eligible.
-   * This avoids carrying one country name across an entire paragraph.
-   */
-  const nearby =
-    locations.filter(
-      (location) =>
-        Math.abs(
-          location.index -
-            priceIndex,
-        ) <= maxDistance,
-    );
-
-  if (
-    nearby.length === 0
-  ) {
-    return null;
-  }
-
-  /**
-   * Prefer a location immediately before the price.
-   *
-   * Example:
+   * Prefer a country/city directly associated with the price.
+   * Examples:
    *   India stood at $376/ton
    *   Pakistan $353/ton
+   *   Pakistan 5% broken WR prices ... $452/mt FOB
    */
-  const before =
-    nearby
+  const directCandidates =
+    locations
       .filter(
         (location) =>
-          location.index <=
+          location.index <
           priceIndex,
+      )
+      .map(
+        (location) => {
+          const between =
+            text.slice(
+              location.index +
+                location.name.length,
+              priceIndex,
+            );
+
+          return {
+            location,
+            between,
+          };
+        },
+      )
+      .filter(
+        ({
+          between,
+        }) =>
+          /^[\s'’,-]*(?:stood\s+at|was\s+at|were\s+at|is\s+at|are\s+at|at|quoted\s+at|priced\s+at|traded\s+at|have\s+also\s+slumped\s+to|slumped\s+to)?[\s'’,-]*$/i.test(
+            between,
+          ),
       )
       .sort(
         (a, b) =>
+          priceIndex -
+          a.location.index -
           (
             priceIndex -
-            b.index
-          ) -
-          (
-            priceIndex -
-            a.index
+            b.location.index
           ),
       );
 
   if (
-    before.length > 0
+    directCandidates.length > 0
   ) {
-    return before[0];
+    return directCandidates[0]
+      .location;
   }
 
   /**
-   * Only use a location after the price when there is no preceding
-   * location in the local window.
+   * Conservative fallback:
+   * only accept a preceding location when it is very close.
+   * This prevents one country from leaking into later prices.
    */
-  const after =
-    nearby
+  const nearby =
+    locations
       .filter(
         (location) =>
-          location.index >
-          priceIndex,
+          location.index <
+            priceIndex &&
+          priceIndex -
+            location.index <=
+            45,
       )
       .sort(
         (a, b) =>
-          a.index -
-          b.index,
+          (
+            priceIndex -
+            a.index
+          ) -
+          (
+            priceIndex -
+            b.index
+          ),
       );
 
-  return after[0] ?? null;
+  return nearby[0] ?? null;
 }
-
 function priceIsAttributableToComparisonMarket(
   location: ResearchLocation | null,
   text: string,
