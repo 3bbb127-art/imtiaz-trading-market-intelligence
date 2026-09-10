@@ -1319,8 +1319,7 @@ function resolveSignals(
       ),
     conflict: false,
   };
-}
-
+} 
 // -----------------------------------------------------------------------------
 // Price location extraction
 // -----------------------------------------------------------------------------
@@ -1334,8 +1333,7 @@ interface ResearchLocation {
 function locationsInText(
   text: string,
 ): ResearchLocation[] {
-  const results:
-    ResearchLocation[] = [];
+  const results: ResearchLocation[] = [];
 
   const lower =
     text.toLowerCase();
@@ -1410,26 +1408,8 @@ function locationNearPrice(
   text: string,
   priceIndex: number,
 ): ResearchLocation | null {
-  const windowStart =
-    Math.max(
-      0,
-      priceIndex - 140,
-    );
-
-  const windowEnd =
-    Math.min(
-      text.length,
-      priceIndex + 80,
-    );
-
-  const window =
-    text.slice(
-      windowStart,
-      windowEnd,
-    );
-
   const locations =
-    locationsInText(window);
+    locationsInText(text);
 
   if (
     locations.length === 0
@@ -1437,18 +1417,37 @@ function locationNearPrice(
     return null;
   }
 
-  const absoluteLocations =
-    locations.map(
-      (location) => ({
-        ...location,
-        index:
-          windowStart +
-          location.index,
-      }),
+  const maxDistance =
+    120;
+
+  /**
+   * Only a location that is very close to the price is eligible.
+   * This avoids carrying one country name across an entire paragraph.
+   */
+  const nearby =
+    locations.filter(
+      (location) =>
+        Math.abs(
+          location.index -
+            priceIndex,
+        ) <= maxDistance,
     );
 
+  if (
+    nearby.length === 0
+  ) {
+    return null;
+  }
+
+  /**
+   * Prefer a location immediately before the price.
+   *
+   * Example:
+   *   India stood at $376/ton
+   *   Pakistan $353/ton
+   */
   const before =
-    absoluteLocations
+    nearby
       .filter(
         (location) =>
           location.index <=
@@ -1456,13 +1455,13 @@ function locationNearPrice(
       )
       .sort(
         (a, b) =>
-          Math.abs(
+          (
             priceIndex -
-              b.index,
+            b.index
           ) -
-          Math.abs(
+          (
             priceIndex -
-              a.index,
+            a.index
           ),
       );
 
@@ -1472,8 +1471,12 @@ function locationNearPrice(
     return before[0];
   }
 
+  /**
+   * Only use a location after the price when there is no preceding
+   * location in the local window.
+   */
   const after =
-    absoluteLocations
+    nearby
       .filter(
         (location) =>
           location.index >
@@ -1485,14 +1488,9 @@ function locationNearPrice(
           b.index,
       );
 
-  if (
-    after.length > 0
-  ) {
-    return after[0];
-  }
-
-  return null;
+  return after[0] ?? null;
 }
+
 function priceIsAttributableToComparisonMarket(
   location: ResearchLocation | null,
   text: string,
@@ -1500,41 +1498,71 @@ function priceIsAttributableToComparisonMarket(
   markets: string[],
 ): boolean {
   if (
-    !location ||
     markets.length < 2
   ) {
     return false;
   }
 
+  /**
+   * Strongest signal:
+   * the directly associated location is one of the requested markets.
+   */
   if (
-    markets.some((market) =>
-      entityMatchesText(
-        market,
-        location.name,
-      ),
+    location &&
+    markets.some(
+      (market) =>
+        entityMatchesText(
+          market,
+          location.name,
+        ),
     )
   ) {
     return true;
   }
 
-  const window =
+  /**
+   * Conservative local attribution.
+   *
+   * Do not inspect a large paragraph. A price can only inherit
+   * comparison-market attribution from a narrow sentence-level window.
+   */
+  const localWindow =
     text.slice(
       Math.max(
         0,
-        priceIndex - 100,
+        priceIndex - 70,
       ),
       Math.min(
         text.length,
-        priceIndex + 100,
+        priceIndex + 45,
       ),
     );
 
-  return markets.some((market) =>
-    entityMatchesText(
-      market,
-      window,
-    ),
-  );
+  /**
+   * Reject local text that mentions multiple comparison markets.
+   * Example:
+   *   "India ... Pakistan ... $353"
+   *
+   * Without a direct location immediately attached to the price,
+   * attribution is ambiguous and must not be invented.
+   */
+  const matchedMarkets =
+    markets.filter(
+      (market) =>
+        entityMatchesText(
+          market,
+          localWindow,
+        ),
+    );
+
+  if (
+    matchedMarkets.length !==
+    1
+  ) {
+    return false;
+  }
+
+  return true;
 }
 
 // -----------------------------------------------------------------------------
