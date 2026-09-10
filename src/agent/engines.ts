@@ -3535,6 +3535,10 @@ export function recommendationEngine(
     points.length > 0 ||
     input.marketRows.length > 0;
 
+  // ---------------------------------------------------------------------------
+  // Comparison recommendation
+  // ---------------------------------------------------------------------------
+
   if (
     isComparisonWorkflow(
       input,
@@ -3545,31 +3549,85 @@ export function recommendationEngine(
         input,
       );
 
-    const distinctLocations =
-      new Set(
-        points
-          .map(
-            (point) =>
-              normalizeText(
-                point.location,
-              ),
-          )
-          .filter(Boolean),
+    const normalizedMarkets =
+      markets.map(
+        normalizeText,
       );
 
+    const validPoints =
+      points.filter(
+        (point) =>
+          point.price != null &&
+          Number.isFinite(
+            point.price,
+          ) &&
+          point.price > 0 &&
+          !!point.location,
+      );
+
+    /**
+     * Explicitly identify which requested comparison market has
+     * at least one attributable price observation.
+     */
+    const marketCoverage =
+      normalizedMarkets.map(
+        (market) => {
+          const matched =
+            validPoints.filter(
+              (point) =>
+                normalizeText(
+                  point.location,
+                ) === market ||
+                entityMatchesText(
+                  market,
+                  point.location,
+                ),
+            );
+
+          return {
+            market,
+            count:
+              matched.length,
+          };
+        },
+      );
+
+    const coveredMarkets =
+      marketCoverage.filter(
+        (item) =>
+          item.count > 0,
+      );
+
+    /**
+     * Both comparison markets must have direct price evidence.
+     */
     if (
-      points.length < 2 ||
-      distinctLocations.size < 2
+      coveredMarkets.length <
+      2
     ) {
+      const missingMarkets =
+        marketCoverage
+          .filter(
+            (item) =>
+              item.count === 0,
+          )
+          .map(
+            (item) =>
+              item.market,
+          );
+
       return {
         rec:
           'NEED MORE DATA',
 
         rationale:
-          `Insufficient directly attributable price data to compare ${markets[0]} vs ${markets[1]}.`,
+          `Direct price evidence is incomplete for the comparison. Missing attributable price data for: ${missingMarkets.join(', ')}.`,
       };
     }
 
+    /**
+     * Critical anomalies override a normal comparison recommendation.
+     */
     if (
       anomalies.some(
         (anomaly) =>
@@ -3582,18 +3640,25 @@ export function recommendationEngine(
           'HOLD',
 
         rationale:
-          'Critical market anomaly detected; comparison should not be used for immediate commitment decisions.',
+          `Critical market anomaly detected while comparing ${markets[0]} vs ${markets[1]}; do not use the comparison for immediate commitment decisions.`,
       };
     }
 
+    /**
+     * Comparison is informational, not an automatic import GO/NO-GO decision.
+     */
     return {
       rec:
         'MONITOR',
 
       rationale:
-        `Comparison evidence is available for ${markets[0]} vs ${markets[1]}; continue monitoring verified market signals.`,
+        `Direct price evidence is available for both ${markets[0]} and ${markets[1]}; continue monitoring verified market signals and compare quality, specification, timing, and logistics before any purchase decision.`,
     };
   }
+
+  // ---------------------------------------------------------------------------
+  // Import-route recommendation
+  // ---------------------------------------------------------------------------
 
   if (
     input.origin &&
@@ -3706,12 +3771,17 @@ export function recommendationEngine(
     };
   }
 
+  // ---------------------------------------------------------------------------
+  // General market recommendation
+  // ---------------------------------------------------------------------------
+
   if (
     !hasData
   ) {
     return {
       rec:
         'NEED MORE DATA',
+
       rationale:
         INSUFFICIENT,
     };
@@ -3727,6 +3797,7 @@ export function recommendationEngine(
     return {
       rec:
         'HOLD',
+
       rationale:
         'Critical anomaly detected — avoid new commitments until conditions clarify.',
     };
@@ -3739,6 +3810,7 @@ export function recommendationEngine(
     return {
       rec:
         'MONITOR',
+
       rationale:
         'Tight supply creates price risk; monitor for stabilization before large commitments.',
     };
@@ -3750,6 +3822,7 @@ export function recommendationEngine(
     return {
       rec:
         'HOLD',
+
       rationale:
         'Weak demand suggests limited near-term opportunity.',
     };
@@ -3758,11 +3831,11 @@ export function recommendationEngine(
   return {
     rec:
       'MONITOR',
+
     rationale:
       'Market conditions balanced — continue monitoring for directional signals.',
   };
 }
-
 // -----------------------------------------------------------------------------
 // Sources
 // -----------------------------------------------------------------------------
