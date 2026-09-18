@@ -8,32 +8,8 @@
 // 5. Existing ParsedIntent fields remain backward-compatible.
 // 6. Comparison metadata is additive.
 // 7. Comparison never creates a fictional import route.
-//
-// Examples:
-//
-// Compare wheat prices in Russia and Kazakhstan for Afghanistan.
-// -> comparisonMarkets: ["Russia", "Kazakhstan"]
-// -> comparisonContext: "Afghanistan"
-// -> origin: null
-// -> destination: "Afghanistan"
-//
-// Research wheat imports from Russia to Afghanistan.
-// -> origin: "Russia"
-// -> destination: "Afghanistan"
-// -> comparisonMarkets: []
-//
-// Compare rice prices in India and Pakistan.
-// -> comparisonMarkets: ["India", "Pakistan"]
-// -> comparisonContext: null
-// -> origin: null
-// -> destination: null
-//
-// Compare sunflower oil from Russia vs Kazakhstan for Kabul.
-// -> comparisonMarkets: ["Russia", "Kazakhstan"]
-// -> comparisonContext: "Afghanistan"
-// -> city: "Kabul"
-// -> origin: null
-// -> destination: "Afghanistan"
+// 8. Key-value / labeled input is supported generics (e.g. Commodity: Rice, Origin: India, etc.)
+// 9. City/Market inquiries represent local scope and DO NOT automatically set import destination.
 
 import type { ParsedIntent } from '../lib/types';
 
@@ -675,6 +651,77 @@ function currencyForCountry(country: string | null): string | null {
 }
 
 /* -------------------------------------------------------------------------- */
+/* LABELED / KEY-VALUE PARSER                                                 */
+/* -------------------------------------------------------------------------- */
+
+interface KeyValueParsed {
+  commodity?: string | null;
+  origin?: string | null;
+  destination?: string | null;
+  city?: string | null;
+  market?: string | null;
+  comparisonMarkets?: string[];
+  comparisonContext?: string | null;
+  currency?: string | null;
+  period?: string | null;
+  objective?: string | null;
+}
+
+function parseKeyValueInput(raw: string): KeyValueParsed | null {
+  if (!raw.includes(':')) {
+    return null;
+  }
+
+  const lines = raw.split(/\r?\n/);
+  const pairs: Record<string, string> = {};
+  let count = 0;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const colonIdx = trimmed.indexOf(':');
+    if (colonIdx > 0) {
+      const key = trimmed.slice(0, colonIdx).trim().toLowerCase();
+      const val = trimmed.slice(colonIdx + 1).trim();
+      if (key && val) {
+        pairs[key] = val;
+        count++;
+      }
+    }
+  }
+
+  if (count === 0) return null;
+
+  const result: KeyValueParsed = {};
+
+  for (const [key, val] of Object.entries(pairs)) {
+    if (['commodity', 'product', 'item'].includes(key)) {
+      result.commodity = findCommodity(val) ?? titleCase(val);
+    } else if (['origin', 'from', 'source', 'exporting country', 'exporter'].includes(key)) {
+      result.origin = canonicalCountry(val) ?? titleCase(val);
+    } else if (['destination', 'to', 'target country', 'importing country', 'importer'].includes(key)) {
+      result.destination = canonicalCountry(val) ?? titleCase(val);
+    } else if (['target city/market', 'target city', 'target market', 'city/market', 'city', 'market', 'location'].includes(key)) {
+      const cityHit = findCity(val);
+      if (cityHit) {
+        result.city = cityHit.city;
+        result.market = `${cityHit.city} Market`;
+      } else {
+        result.city = titleCase(val);
+        result.market = `${titleCase(val)} Market`;
+      }
+    } else if (['comparison markets', 'comparison', 'compare'].includes(key)) {
+      const parts = val.split(/,|\band\b|\bvs\.?\b|\bversus\b/i).map((s) => s.trim()).filter(Boolean);
+      result.comparisonMarkets = parts.map((p) => canonicalCountry(p) ?? titleCase(p));
+    } else if (['comparison context', 'market context', 'context'].includes(key)) {
+      result.comparisonContext = canonicalCountry(val) ?? titleCase(val);
+    }
+  }
+
+  return result;
+}
+
+/* -------------------------------------------------------------------------- */
 /* COMMODITY DETECTION                                                        */
 /* -------------------------------------------------------------------------- */
 
@@ -692,7 +739,7 @@ function findCommodity(text: string): string | null {
     );
 
     if (pattern.test(lower)) {
-      return commodity;
+      return titleCase(commodity);
     }
   }
 
@@ -905,8 +952,6 @@ function detectObjective(text: string): string {
   const lower = text.toLowerCase();
 
   // Comparison must be detected FIRST.
-  // This prevents "compare ... import ..." from becoming
-  // an import workflow.
   if (
     /\bcompare\b|\bcomparison\b|\bversus\b|\bvs\.?\b|\bbetween\b/.test(
       lower,
@@ -966,14 +1011,10 @@ function detectComparisonContext(
   text: string,
   cityHit: CityHit | null,
 ): string | null {
-  // A city is an explicit market context.
   if (cityHit) {
     return cityHit.country;
   }
 
-  // Explicit:
-  // "... for Afghanistan"
-  // "... for the Afghanistan market"
   const marketPattern =
     /\bfor\s+(?:the\s+)?([a-z][a-z\s-]*?)(?:\s+market)?(?:[.!?,;:]|$)/i;
 
@@ -1019,7 +1060,6 @@ function detectComparisonMarkets(
     }
   }
 
-  // Context country is NOT a comparison market.
   const candidates = uniqueCountries.filter(
     (country) =>
       !comparisonContext ||
@@ -1027,13 +1067,6 @@ function detectComparisonMarkets(
         comparisonContext.toLowerCase(),
   );
 
-  /**
-   * Explicit forms:
-   *
-   * between Russia and Kazakhstan
-   * Russia vs Kazakhstan
-   * Russia versus Kazakhstan
-   */
   const explicitPatterns = [
     /\bbetween\s+([a-z][a-z\s-]+?)\s+(?:and|&)\s+([a-z][a-z\s-]+?)(?=$|[.,!?;:]|\s+for\b|\s+in\b)/i,
 
@@ -1076,15 +1109,6 @@ function detectComparisonMarkets(
     }
   }
 
-  /**
-   * Generic fallback:
-   *
-   * Russia, Kazakhstan, Afghanistan
-   * -> Russia, Kazakhstan
-   *
-   * This is safe because the context country has already
-   * been excluded.
-   */
   return candidates.slice(0, 2);
 }
 
@@ -1100,8 +1124,6 @@ function detectImportRoute(
   origin: string | null;
   destination: string | null;
 } {
-  // CRITICAL:
-  // A comparison is never an import route.
   if (isComparison) {
     return {
       origin: null,
@@ -1111,13 +1133,8 @@ function detectImportRoute(
 
   const normalized = normalizeText(text);
 
-  /**
-   * Strong explicit route:
-   * from Russia to Afghanistan
-   * from Russia into Afghanistan
-   */
   const explicitRoutePatterns = [
-    /\bfrom\s+([a-z][a-z\s-]+?)\s+(?:to|into|toward|towards)\s+([a-z][a-z\s-]+?)(?=$|[.,!?;:]|\s+for\b|\s+with\b)/i,
+    /\bfrom\s+([a-z][a-z\s-]+?)\s+(?:to|into|toward|towards)\s+([a-z][a-z\s-]+?)(?=$|[.,!?;:]|\s+for\b|\s+with\b|\s+in\b)/i,
 
     /\bfrom\s+([a-z][a-z\s-]+?)\s+(?:to|into|toward|towards)\s+([a-z][a-z\s-]+)/i,
   ];
@@ -1146,6 +1163,25 @@ function detectImportRoute(
   }
 
   const lower = normalized.toLowerCase();
+
+  /**
+   * Generic route pattern: [CountryA] (to|into) [CountryB]
+   * Example: wheat Russia to Iran, corn Brazil to Egypt
+   */
+  if (countryMatches.length >= 2) {
+    for (let i = 0; i < countryMatches.length - 1; i++) {
+      const matchA = countryMatches[i];
+      const matchB = countryMatches[i + 1];
+      const betweenText = lower.slice(matchA.end, matchB.start).trim();
+
+      if (/^(?:\s*to|\s*into|\s*towards?)\s*$/i.test(betweenText) || /^\s*to\b/i.test(betweenText)) {
+        return {
+          origin: matchA.canonical,
+          destination: matchB.canonical,
+        };
+      }
+    }
+  }
 
   const isImportCommand =
     /\bimport\b|\bimports\b|\bimporting\b|\bimported\b/.test(
@@ -1212,10 +1248,6 @@ function detectImportRoute(
     };
   }
 
-  /**
-   * Fallback for:
-   * Russia to Afghanistan
-   */
   if (routeEnd !== -1) {
     const before = countryMatches.filter(
       (match) =>
@@ -1254,9 +1286,10 @@ function detectImportRoute(
 export function parseCommand(
   raw: string,
 ): ParsedIntent {
+  const kv = parseKeyValueInput(raw);
   const text = normalizeText(raw);
 
-  if (!text) {
+  if (!text && !kv) {
     return {
       commodity: null,
       origin: null,
@@ -1275,19 +1308,18 @@ export function parseCommand(
 
   const assumptions: string[] = [];
 
-  const commodity = findCommodity(text);
+  const commodity = kv?.commodity ?? findCommodity(text);
   const cityHit = findCity(text);
   const countryMatches =
     findCountryMatches(text);
-  const countries = findCountries(text);
   const currencyHits =
     findCurrencies(text);
 
   const objective =
-    detectObjective(text);
+    kv?.objective ?? detectObjective(text);
 
   const period =
-    detectPeriod(text);
+    kv?.period ?? detectPeriod(text);
 
   const isComparison =
     objective === 'compare';
@@ -1296,10 +1328,10 @@ export function parseCommand(
   /* COMPARISON                                                              */
   /* ---------------------------------------------------------------------- */
 
-  let comparisonMarkets: string[] = [];
-  let comparisonContext: string | null = null;
+  let comparisonMarkets: string[] = kv?.comparisonMarkets ?? [];
+  let comparisonContext: string | null = kv?.comparisonContext ?? null;
 
-  if (isComparison) {
+  if (isComparison && comparisonMarkets.length === 0) {
     comparisonContext =
       detectComparisonContext(
         text,
@@ -1326,19 +1358,11 @@ export function parseCommand(
     );
 
   let origin =
-    route.origin;
+    kv?.origin ?? route.origin;
 
   let destination =
-    route.destination;
+    kv?.destination ?? route.destination;
 
-  /**
-   * For comparison:
-   *
-   * origin = null
-   * destination = context only
-   *
-   * Russia/Kazakhstan are NOT treated as an import route.
-   */
   if (isComparison) {
     origin = null;
     destination =
@@ -1350,35 +1374,12 @@ export function parseCommand(
   /* ---------------------------------------------------------------------- */
 
   const city: string | null =
-    cityHit?.city ??
-    null;
+    kv?.city ??
+    (cityHit?.city ?? null);
 
   const market: string | null =
-    city
-      ? `${city} Market`
-      : null;
-
-  if (
-    cityHit &&
-    !destination
-  ) {
-    destination =
-      cityHit.country;
-  }
-
-  /**
-   * Single-country non-comparison command:
-   * "Analyze wheat market in Afghanistan."
-   */
-  if (
-    countries.length === 1 &&
-    !destination &&
-    !origin &&
-    !isComparison
-  ) {
-    destination =
-      countries[0];
-  }
+    kv?.market ??
+    (city ? `${city} Market` : null);
 
   /* ---------------------------------------------------------------------- */
   /* CURRENCIES                                                              */
@@ -1413,10 +1414,6 @@ export function parseCommand(
     );
   }
 
-  /**
-   * USD remains the global normalization
-   * currency unless explicitly present.
-   */
   if (!currencies.includes('USD')) {
     currencies.push('USD');
   }
@@ -1496,13 +1493,7 @@ export function parseCommand(
 
   const parsedIntent =
     {
-      commodity:
-        commodity
-          ? titleCase(
-              commodity,
-            )
-          : null,
-
+      commodity,
       origin,
       destination,
 
@@ -1542,10 +1533,6 @@ export function intentLabel(
     );
   }
 
-  /**
-   * Comparison takes precedence over
-   * origin/destination display.
-   */
   if (
     extended.comparisonMarkets &&
     extended.comparisonMarkets.length >= 2
