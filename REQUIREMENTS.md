@@ -1,25 +1,41 @@
-# REQUIREMENTS — GLOBAL MARKET INTELLIGENCE OFFICER AI
+# REQUIREMENTS
+# Global Commodity & International Trade Market Intelligence AI
 
-## Product Goal
-Autonomous commodity market intelligence — global to local.
+## 1. Product Definition
 
-Core principle:
-`DATA → EVIDENCE → INTELLIGENCE → DECISION`
+The system is a GLOBAL COMMODITY AND INTERNATIONAL TRADE MARKET INTELLIGENCE PLATFORM.
 
-## Global-First
-All logic must support any:
-- country
-- commodity
-- origin
-- destination
-- city
-- market
-- currency
-- trade route
+It must understand and analyze any legitimate tradeable commodity and market context worldwide.
 
-Afghanistan, India, Pakistan, Kabul, Herat, etc. are test examples only and must not create country-specific hard-coded logic.
+It is NOT limited to:
+- food
+- Afghanistan
+- one company
+- one country
+- one commodity class
 
-## Intended Intelligence Flow
+Examples are test data only.
+
+## 2. Global Scope
+
+Support generically:
+- Any tradeable commodity
+- Any commodity category
+- Any country
+- Any city
+- Any local market
+- Any currency
+- Any origin
+- Any destination
+- Any international trade route
+- Any date/time context
+
+Examples may include agriculture, energy, metals, chemicals, food, industrial goods, raw materials, machinery, and other tradeable goods.
+
+The implementation must not require a separate code path for each commodity or country.
+
+## 3. Core Intelligence Flow
+
 `USER QUERY`
 → `COMMAND PARSER`
 → `GLOBAL MARKET SCOPE`
@@ -33,72 +49,144 @@ Afghanistan, India, Pakistan, Kabul, Herat, etc. are test examples only and must
 → `RISK + COMPETITION`
 → `FORECAST`
 → `REPORT`
+→ `DATA → EVIDENCE → INTELLIGENCE → DECISION`
 
-## Main Functional Areas
-- Dashboard
-- Ask Agent
-- Market Data
-- Import Cost
-- Shipments
-- Stock
-- Research
-- Report
-- Locations
-- New Commodity Evaluation
+## 4. Core Market Scope
 
-## Parser / Scope
-When present, the system should identify:
-- commodity
-- category
-- origin
-- destination
-- country
-- city
-- market
-- comparison targets
-- trade route
-- relevant date/time references
+Identify, when present:
+- Commodity
+- Category
+- Country
+- City / Market
+- Origin
+- Destination
+- Comparison Markets
+- Trade Route
+- Date/time references
 
-Do not invent a destination or geography that the user did not specify.
+## 5. Semantic Rules
 
-## Intelligence
-Research and downstream analysis must use the correct parsed scope.
-Missing data must be shown honestly rather than fabricated.
+### City / Market
+Represents local market scope.
 
-## Data Areas
-Support, where applicable:
-- Price
+Example:
+`rice prices in Mumbai`
+→ Commodity = Rice
+→ City/Market = Mumbai
+
+### Origin / Destination
+Represent an import/export route.
+
+Example:
+`wheat from Russia to Iran`
+→ Origin = Russia
+→ Destination = Iran
+
+### Comparison Markets
+Represent independent comparison targets.
+
+Example:
+`compare rice prices in India and Pakistan`
+→ Comparison Markets = India, Pakistan
+→ Origin = null
+→ Destination = null
+
+### Important
+Do not turn a market-analysis country into a trade destination.
+
+Do not invent a route.
+
+Do not inherit a destination from an unrelated previous command.
+
+## 6. Geographic Resolution
+
+Geographic resolution must be generic.
+
+If a city/market can be resolved to a country using a reliable generic geographic mechanism, store that relationship separately where useful.
+
+However:
+
+`Country of City/Market ≠ Import Destination`
+
+unless the user actually expresses an import/export relationship.
+
+Never hard-code a city-country pair solely to make a test pass.
+
+## 7. Parser Requirements
+
+Support generic labeled/key-value input such as:
+
+`Commodity: Rice`
+`Origin: India`
+`Destination: Afghanistan`
+`Target City/Market: Mazar-e-Sharif`
+`City: Mazar-e-Sharif`
+`Market: Mazar Market`
+
+Also support ordinary natural-language commands.
+
+The parser must preserve semantic boundaries between local market, country, origin, destination and comparison markets.
+
+## 8. Commodity-Agnostic Intelligence
+
+All analysis engines must work on arbitrary tradeable commodities.
+
+Do not create commodity-specific branches unless the rule is genuinely universal and documented.
+
+## 9. Import / Export Intelligence
+
+Where sufficient information exists, support:
+- route
+- price
 - FX
-- Supply
-- Demand
-- Market Sentiment
-- Buying/Selling Behavior
-- Stock
-- Shipments
-- Arrivals/Logistics
-- Risk/Problems
-- Competition
-- Forecast
-- Recommendations
-- Reports
+- freight
+- insurance
+- customs/tariffs
+- duties/taxes
+- transport
+- clearance/handling
+- landed cost
 
-## Import Cost
-Use configurable inputs. Do not invent tariff/customs rates. Distinguish user-entered assumptions from observed data.
+Never invent customs/tariff values.
 
-## Code Quality
-Keep the application clean, modular, understandable, easy to test, easy to debug, and easy for another Agent to continue.
+## 10. Data Integrity
+
+Do not fabricate:
+- prices
+- shipment records
+- stock
+- demand
+- supply
+- market observations
+- source evidence
+
+Unknown or missing values must remain clearly unknown.
+
+## 11. Code Quality
+
+Keep the application:
+`SIMPLE → CLEAN → MODULAR → TRACEABLE → TESTABLE → MAINTAINABLE`
 
 Prefer small focused changes over broad rewrites.
 
-## State and Handoff
-Project state is maintained in `PROJECT_STATUS.md`. Every Agent must verify the repository before continuing.
+## 12. Agent Continuity
 
-## Verification
-No feature is verified without actual execution. See `TEST_PLAN.md`.
+Every Agent must use:
+- `AGENTS.md`
+- `PROJECT_STATUS.md`
+- `REQUIREMENTS.md`
+- `TEST_PLAN.md`
 
-## Out of Scope Unless Explicitly Approved
-- A separate autonomous Builder for unrelated new apps
+as the core project control documents.
+
+## 13. Out of Scope Unless Explicitly Approved
+
+- Building a separate autonomous app-builder product
 - Unrelated UI redesign
 - Unnecessary architecture replacement
-- Provider-policy bypasses
-- Fake or multiple accounts to bypass limits
+- Provider-limit bypassing
+- Fake or multiple accounts for bypassing limits
+
+## 14. Definition of Success
+
+The real system can take global commodity/trade questions, correctly identify scope, gather evidence, analyze it, and produce a traceable intelligence result without country- or commodity-specific hacks.

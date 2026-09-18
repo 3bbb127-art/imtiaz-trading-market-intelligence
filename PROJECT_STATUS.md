@@ -1,103 +1,127 @@
 # PROJECT STATUS
 
 ## Project
-Global Market Intelligence Officer AI
+Global Commodity & International Trade Market Intelligence AI
 
-Repository:
+## Repository
 3bbb127-art/imtiaz-trading-market-intelligence
 
 ## Current Phase
-Command Parser / Global Market Scope QA
+Command Parser / Global Market Scope Verification
 
 ## Current Task
-Audit and fix the Command Parser → Global Market Scope flow.
+Verify and correctly complete the Command Parser → Global Market Scope flow.
 
-## Known Current Issue
-Recent testing showed that Research can execute while the displayed scope may contain incorrect or `n/a` values for:
+## Product Direction
+Global commodity and international trade market intelligence.
+
+The system must understand any tradeable commodity and any legitimate market/trade context worldwide.
+
+## Current Known Issue
+The previous Jules session changed `src/agent/parser.ts` and created a parser test file, but the session ended with an error before full verification was established.
+
+Previous changes are therefore:
+
+`NOT VERIFIED`
+
+The current Agent must inspect the actual repository and verify what is really present.
+
+## Current Priority
+1. Inspect current parser changes.
+2. Inspect the parser test file and its actual path.
+3. Run the parser tests.
+4. Run typecheck.
+5. Compare behavior with `TEST_PLAN.md`.
+6. Diagnose failures.
+7. Apply the smallest correct fix.
+8. Run tests again.
+9. Run relevant regression checks.
+10. Update this file with actual evidence.
+11. Commit verified work.
+
+## Global-First Requirement
+All parser and market-scope behavior must work generically worldwide.
+
+Do not hard-code countries, cities, commodities or markets.
+
+## Semantic Boundaries
+Keep separate:
 - Commodity
+- Category
+- Country
+- City / Market
 - Origin
 - Destination
-- City / Market
+- Comparison Markets
+- Trade Route
 
-Comparison queries may also inherit context that the user did not explicitly provide.
+A city/market reference is NOT automatically an import destination.
 
-## Verified Existing Areas
-Existing project records/history indicate that the following exist or were previously tested:
-- App UI and main navigation
-- Supabase backend / Edge Function
-- Research flow
-- FX flow
-- Price engine
-- Supply engine
-- Demand engine
-- Typecheck / lint / production build at earlier checkpoints
+A country mentioned in a market-price query is NOT automatically an import destination.
 
-These historical results are NOT current PASS until the current Agent re-runs the relevant checks.
+Only an explicit or reliably resolved trade route should populate Origin/Destination.
+
+## Historical Project Results
+Earlier checkpoints reported successful:
+- Research
+- FX
+- Price
+- Supply
+- Demand
+- Typecheck
+- Lint
+- Production build
+
+These are historical claims only and must be re-verified before current PASS status.
 
 ## In Progress
-- Command Parser QA
-- Global Market Scope correctness
-- Comparison-query scope handling
+- Parser QA
+- Global Market Scope QA
+- Comparison query handling
 
 ## Completed
-Only add items here after current evidence confirms them.
+Only add items after current evidence confirms them.
 
 ## Known Bugs / Risks
-- Global Market Scope may lose or fail to display parsed fields.
-- Comparison queries may incorrectly inherit a destination/context.
+- Global Market Scope may lose or display incorrect fields.
+- Comparison queries may inherit unrelated geography.
 - Downstream intelligence depends on correct scope.
-
-## Last Successful Test
-Historical only. Re-run before treating as current verification.
-
-## Last Failed Test
-Historical Global Market Scope failure where Research ran while scope fields remained incomplete or `n/a`.
-
-## Files Changed
-Update after real changes.
-
-## Last Commit
-Record the actual relevant commit.
-
-## Next Action
-1. Inspect the current parser and scope code.
-2. Reproduce the issue with global test cases.
-3. Identify the root cause.
-4. Apply the smallest correct fix.
-5. Run relevant tests.
-6. Run regression tests.
-7. Update this file with evidence.
-8. Commit the verified change.
-
-## Blocked By
-None known.
 
 ## Verification Status
 `NOT VERIFIED`
 
-## Deployment Status
-Current deployment state must be checked before release claims.
-
-## Regression Status
-`NOT VERIFIED`
-
 ## Current Active Agent
-Set by the active Agent.
+Set by the actual active Agent.
 
 ## Previous Agent
 Record on handoff.
 
 ## Agent Status
-Use the controlled states from `AGENTS.md`.
+Use the controlled states defined in `AGENTS.md`.
 
 ## Handoff Reason
-Record only when a handoff occurs.
+Record only when applicable.
 
-## User Approval Required
-`NO` for the current focused parser/scope audit unless a major architecture/scope change is required.
+## Last Successful Test
+Record current evidence only.
 
-## Reactivation Status
-`N/A` unless a previously exhausted Agent becomes available again.
+## Last Failed Test
+Record current evidence only.
+
+## Files Changed
+Record actual changes only.
+
+## Last Commit
+Record actual commit.
+
+## Next Action
+Re-verify current parser changes and tests before any additional feature work.
+
+## Blocked By
+None known.
+
+## Deployment
+Verify current deployment state before release claims.
 
 ## Rule
 Never mark work complete without real evidence.
