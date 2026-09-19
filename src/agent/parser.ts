@@ -1431,9 +1431,6 @@ export function parseCommand(
   const countryMatches =
     findCountryMatches(text);
 
-  const countries =
-    findCountries(text);
-
   const currencyHits =
     findCurrencies(text);
 
