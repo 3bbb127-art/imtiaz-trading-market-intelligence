@@ -809,25 +809,6 @@ function findCountryMatches(text: string): CountryMatch[] {
   );
 }
 
-function findCountries(text: string): string[] {
-  const matches = findCountryMatches(text);
-  const result: string[] = [];
-
-  for (const match of matches) {
-    const exists = result.some(
-      (country) =>
-        country.toLowerCase() ===
-        match.canonical.toLowerCase(),
-    );
-
-    if (!exists) {
-      result.push(match.canonical);
-    }
-  }
-
-  return result;
-}
-
 /* -------------------------------------------------------------------------- */
 /* CITY DETECTION                                                             */
 /* -------------------------------------------------------------------------- */
