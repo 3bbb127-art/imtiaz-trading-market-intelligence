@@ -1128,10 +1128,16 @@ function classifyDemandFromText(
   text: string,
 ): DemandLevel | null {
   const value =
-    text.toLowerCase();
+    text
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
 
   if (
-    /\b(surg(?:e|ing)|soaring|explosive demand|skyrocket|surge in demand|sharp increase in demand|spike in demand)\b/.test(
+    /\b(?:surging|surge|soaring|explosive|skyrocketing|skyrocket|sharp increase|spike|strongly increasing|rapidly increasing)\b[\s\S]{0,50}\bdemand\b/.test(
+      value,
+    ) ||
+    /\bdemand\b[\s\S]{0,50}\b(?:surging|soaring|explosive|skyrocketing|skyrocket|surge|sharp increase|spike)\b/.test(
       value,
     )
   ) {
@@ -1139,7 +1145,16 @@ function classifyDemandFromText(
   }
 
   if (
-    /\b(demand (?:increased|increasing|rising|grew|strong|robust|high)|strong demand|robust demand|high demand|rising consumption|increased consumption|growing consumption|buying activity (?:increased|strong|high)|import demand (?:increased|rising|strong)|household demand (?:increased|strong)|industrial demand (?:increased|strong|rising)|higher consumption|strong (?:purchases|buying))\b/.test(
+    /\b(?:strong|robust|high|rising|increasing|growing|increased|grew)\b[\s\S]{0,50}\bdemand\b/.test(
+      value,
+    ) ||
+    /\bdemand\b[\s\S]{0,50}\b(?:strong|robust|high|rising|increasing|growing|increased|grew)\b/.test(
+      value,
+    ) ||
+    /\b(?:strong|robust|high|rising|increasing|growing)\s+(?:buying|purchases|consumption)\b/.test(
+      value,
+    ) ||
+    /\b(?:buying activity|import demand|household demand|industrial demand)\b[\s\S]{0,50}\b(?:strong|high|rising|increasing|growing)\b/.test(
       value,
     )
   ) {
@@ -1147,7 +1162,13 @@ function classifyDemandFromText(
   }
 
   if (
-    /\b(demand (?:decreased|declining|falling|weak|low|dropped)|weak demand|low demand|sluggish demand|soft demand|falling consumption|declining consumption|reduced consumption|lower demand|weak (?:purchases|buying)|decreased consumption)\b/.test(
+    /\b(?:weak|low|declining|falling|decreasing|decreased|dropped|reduced|soft|sluggish)\b[\s\S]{0,50}\bdemand\b/.test(
+      value,
+    ) ||
+    /\bdemand\b[\s\S]{0,50}\b(?:weak|low|declining|falling|decreasing|decreased|dropped|reduced|soft|sluggish)\b/.test(
+      value,
+    ) ||
+    /\b(?:weak|low|declining|falling|reduced|decreased)\s+(?:buying|purchases|consumption)\b/.test(
       value,
     )
   ) {
@@ -1155,32 +1176,18 @@ function classifyDemandFromText(
   }
 
   if (
-    /\b(normal demand|stable demand|steady demand|moderate demand|demand (?:stable|steady|normal|remained? stable)|demand (?:remains?|is) (?:strong|steady|stable))\b/.test(
+    /\b(?:normal|stable|steady|moderate)\s+demand\b/.test(
+      value,
+    ) ||
+    /\bdemand\b[\s\S]{0,40}\b(?:normal|stable|steady|moderate)\b/.test(
       value,
     )
   ) {
     return 'Normal';
   }
 
-  if (
-    /demand\b[^.]{0,40}\b(?:strong|robust|high|rising|increasing|growing)\b/.test(
-      value,
-    )
-  ) {
-    return 'Strong';
-  }
-
-  if (
-    /demand\b[^.]{0,40}\b(?:weak|low|declining|falling|decreasing)\b/.test(
-      value,
-    )
-  ) {
-    return 'Weak';
-  }
-
   return null;
 }
-
 interface ResearchSignal {
   level:
     | SupplyLevel
