@@ -10,11 +10,11 @@ Global Commodity & International Trade Market Intelligence AI
 
 ## Current Phase
 
-Parser / Global Market Scope — Awaiting Independent CI Verification
+Parser / Global Market Scope — Independent Verification Pending
 
 ## Current Task
 
-Verify PR #2 with independent GitHub CI before merge.
+Independently verify PR #2 before merge.
 
 ## Product Direction
 
@@ -22,63 +22,192 @@ Global commodity and international trade market intelligence.
 
 The system must support any legitimate tradeable commodity, country, city, market, currency, origin, destination, trade route, and comparison context worldwide.
 
-Afghanistan, India, Pakistan, Russia, and other countries are test examples only and must not create country-specific logic in the codebase.
+Afghanistan, India, Pakistan, Russia, and other countries are test examples only. They must not create country-specific logic in the codebase.
 
-## Current Verification Boundary
+## PR Under Verification
 
-PR #2 contains changes focused on the Command Parser and Global Market Scope behavior.
+Pull Request: #2
 
-Jules has reported successful parser tests, typecheck, lint, and production build results.
+Branch:
+`jules-4885077465160807839-b3bd2707`
 
-These results are agent-reported and are not considered independent verification until the required GitHub CI checks execute successfully on the PR.
+Target:
+`main`
 
-Previous agent claims or previous successful deployments are not, by themselves, proof that the current PR is fully verified.
+Purpose:
+Command Parser and Global Market Scope implementation and verification.
 
-## Completed Implementation Work
+## Implemented Changes in PR #2
 
-1. **Key-Value Input Parsing**
-   Added generic labeled key-value parsing support for:
-   `Commodity:`
-   `Origin:`
-   `Destination:`
-   `Target City/Market:`
-   `City:`
-   `Market:`
-   `Comparison Markets:`
-   `Context:`
+### 1. Key-Value Input Parsing
 
-   Implementation location:
-   `src/agent/parser.ts`
+Added generic labeled input parsing in:
 
-2. **Global Natural-Language Route Parsing**
-   Added parsing for explicit trade routes such as:
-   `<CountryA> to <CountryB>`
-   `from <CountryA> to <CountryB>`
+`src/agent/parser.ts`
 
-   Examples include:
-   `wheat Russia to Iran`
-   `corn Brazil to Egypt`
-   `copper Chile to China`
-   `crude oil Saudi Arabia to India`
+Supported labels include:
 
-3. **Semantic Boundary Enforcement**
-   Parser semantics must keep these concepts separate:
+* `Commodity:`
+* `Origin:`
+* `Destination:`
+* `Target City/Market:`
+* `City:`
+* `Market:`
+* `Comparison Markets:`
+* `Context:`
 
-   * Commodity
-   * Country
-   * City / Market
-   * Origin
-   * Destination
-   * Comparison Markets
+### 2. Global Natural-Language Route Parsing
 
-   A city or market mention must not automatically become an import destination.
+Added support for explicit international trade routes such as:
 
-   A country mentioned only as a market or comparison must not automatically become an import destination.
+`<CountryA> to <CountryB>`
 
-   Comparison markets must not create a fictional import route.
+`from <CountryA> to <CountryB>`
 
-4. **Commodity Coverage Expansion**
-   Added `crude oil` and `oil` to the commodity dictionary and related category mappings.
+Examples include:
+
+* `wheat Russia to Iran`
+* `corn Brazil to Egypt`
+* `copper Chile to China`
+* `crude oil Saudi Arabia to India`
+
+These are examples only. Route parsing must remain generic and global.
+
+### 3. Semantic Boundary Enforcement
+
+The parser must keep the following concepts separate:
+
+* Commodity
+* Category
+* Country
+* City / Market
+* Origin
+* Destination
+* Comparison Markets
+* Trade Route
+
+A city or market mention must not automatically become an import destination.
+
+A country mentioned only as a market or comparison must not automatically become an import destination.
+
+Comparison markets must not create a fictional trade route.
+
+Only an explicit or reliably resolved trade context may populate Origin or Destination.
+
+### 4. Commodity Coverage
+
+PR #2 adds `crude oil` and `oil` to the commodity dictionary and related category mappings.
+
+## Test Coverage Added in PR #2
+
+The parser test suite in:
+
+`src/agent/__test__/rice-demo.ts`
+
+includes global cases covering:
+
+* Commodity + City
+* Explicit import route
+* Route + City
+* Country comparison
+* Global comparison
+* Commodity-only query
+* City / Market query
+* Labeled key-value input
+* Additional global trade routes
+
+Representative examples include:
+
+`wheat in Chicago`
+
+`wheat Russia to Iran`
+
+`sunflower oil Russia to Afghanistan in Kabul`
+
+`compare rice prices in India and Pakistan`
+
+`compare wheat prices in Russia and Kazakhstan`
+
+`wheat price trend`
+
+`rice prices in Mumbai`
+
+`corn Brazil to Egypt`
+
+`copper Chile to China`
+
+`crude oil Saudi Arabia to India`
+
+`compare steel prices in Germany and Turkey`
+
+## Semantic Verification Requirements
+
+The following behavior must be confirmed by actual test execution:
+
+### Local Market Query
+
+`wheat in Chicago`
+
+Expected:
+
+* Commodity = Wheat
+* City / Market = Chicago
+* Origin = null
+* Destination = null
+
+### City Market Query
+
+`rice prices in Mumbai`
+
+Expected:
+
+* Commodity = Rice
+* City / Market = Mumbai
+* Origin = null
+* Destination = null
+
+### Explicit Import Route
+
+`wheat Russia to Iran`
+
+Expected:
+
+* Commodity = Wheat
+* Origin = Russia
+* Destination = Iran
+
+### Route + City
+
+`sunflower oil Russia to Afghanistan in Kabul`
+
+Expected:
+
+* Commodity = Sunflower Oil
+* Origin = Russia
+* Destination = Afghanistan
+* City / Market = Kabul
+
+### Comparison Query
+
+`compare rice prices in India and Pakistan`
+
+Expected:
+
+* Commodity = Rice
+* Comparison Markets = India, Pakistan
+* Origin = null
+* Destination = null
+
+### Global Comparison
+
+`compare wheat prices in Russia and Kazakhstan`
+
+Expected:
+
+* Commodity = Wheat
+* Comparison Markets = Russia, Kazakhstan
+* Origin = null
+* Destination = null
 
 ## Agent-Reported Test Results
 
@@ -91,15 +220,19 @@ Jules reported the following results on the PR branch:
 * `npm run lint` — PASS
 * `npm run build` — PASS
 
-These results remain **agent-reported** until reproduced and confirmed by the required GitHub CI checks.
+These results are recorded as **agent-reported evidence only**.
 
-## Independent Verification Status
+They do not establish independent verification.
+
+## Verification Status
 
 `NOT VERIFIED`
 
-### Required Independent Verification
+This is the single authoritative project verification status until independent verification is completed.
 
-GitHub CI must execute and pass the required checks for PR #2, including:
+## Required Independent Verification
+
+GitHub CI must execute and pass the required checks for PR #2:
 
 * `npm ci`
 * `npm run typecheck`
@@ -107,15 +240,13 @@ GitHub CI must execute and pass the required checks for PR #2, including:
 * `npm run build`
 * Parser verification test
 
-A green Vercel Preview deployment alone does not verify parser correctness or the complete application logic.
+The actual PR check results must be inspected before merge.
 
-## Known Verification Gap
+A Vercel Preview marked `Ready` does not, by itself, verify parser correctness or application logic.
 
-The current PR must still be independently verified on GitHub before merge.
+A successful deployment to `main` does not, by itself, verify the PR.
 
-Downstream engines are not being declared verified by this file.
-
-No production-readiness claim is valid until the required verification and regression checks pass.
+Previous agent reports are not substitutes for current independent verification.
 
 ## Files Changed in PR #2
 
@@ -129,44 +260,60 @@ Jules — PR #2
 
 ## Next Action
 
-Run and review independent GitHub CI verification for PR #2.
+Run and review the independent GitHub CI checks for PR #2.
+
+If any required check fails:
+
+`DIAGNOSE → FIX → TEST AGAIN → REGRESSION TEST`
+
+Do not proceed to merge until the required checks pass.
 
 ## Merge Gate
 
-Do not merge PR #2 until:
+PR #2 must not be merged until:
 
 1. Required GitHub CI checks pass.
-2. Parser/global-scope behavior is reviewed against the required test cases.
+2. Parser and Global Market Scope behavior matches the required semantic test cases.
 3. No blocking regression is found.
 
 ## Production Gate
 
-Do not deploy or release changes to Production based only on:
+Do not treat the project as production-ready based only on:
 
-* Jules-reported test results
-* Vercel Preview `Ready` status
-* GitHub deployment success on `main`
+* Agent-reported test results
+* Vercel Preview `Ready`
+* Successful GitHub deployment
+* Successful build without application-level verification
 
-Production release requires verified test evidence and a completed release check.
+Production release requires actual verified test evidence and completion of the release gate.
 
 ## Status Definitions
 
-`PASS` = test was actually executed and passed.
+`PASS` = the test was actually executed and passed.
 
-`FAILED` = test was actually executed and failed.
+`FAILED` = the test was actually executed and failed.
 
 `BLOCKED` = verification could not be completed because of a genuine blocker.
 
-`NOT VERIFIED` = required independent verification has not yet been completed.
+`NOT VERIFIED` = required verification has not yet been independently completed.
 
 `PROJECT VERIFIED — READY FOR RELEASE` = all required release checks have actually passed.
 
-## Engineering Rule
+## Engineering Rules
 
-No implementation is considered verified merely because code exists, a deployment is successful, or an agent reports success.
+No implementation is considered verified merely because:
 
-Every failure must follow:
+* code exists,
+* an agent reports success,
+* a build succeeds,
+* or a deployment succeeds.
 
-`DIAGNOSE → FIX → TEST AGAIN → REGRESSION TEST`
+All changes must be verified with real execution and evidence.
 
-Every release decision must be based on actual evidence.
+All fixes must be followed by re-testing and relevant regression testing.
+
+Do not mark the project:
+
+`PROJECT VERIFIED — READY FOR RELEASE`
+
+until the complete required release verification has actually passed.
