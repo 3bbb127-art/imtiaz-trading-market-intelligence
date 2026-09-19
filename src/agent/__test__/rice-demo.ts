@@ -25,6 +25,73 @@ assert('Destination = Afghanistan', intent.destination === 'Afghanistan', `got "
 assert('City = Mazar-e-Sharif', intent.city === 'Mazar-e-Sharif', `got "${intent.city}"`);
 assert('Commodity = Rice', intent.commodity === 'Rice', `got "${intent.commodity}"`);
 
+// ---- STEP 1B: Global Parser Verification Suite ----
+console.log('\n=== STEP 1B: Global Parser Verification Suite ===');
+
+// Test 1: Commodity + City
+const p1 = parseCommand('wheat in Chicago');
+assert('Parser T1 (Commodity+City): wheat', p1.commodity === 'Wheat', `got "${p1.commodity}"`);
+assert('Parser T1 (Commodity+City): Chicago', p1.city === 'Chicago', `got "${p1.city}"`);
+assert('Parser T1 (Commodity+City): no origin', p1.origin === null, `got "${p1.origin}"`);
+
+// Test 2: Import Route
+const p2 = parseCommand('wheat Russia to Iran');
+assert('Parser T2 (Route): wheat', p2.commodity === 'Wheat', `got "${p2.commodity}"`);
+assert('Parser T2 (Route): Russia', p2.origin === 'Russia', `got "${p2.origin}"`);
+assert('Parser T2 (Route): Iran', p2.destination === 'Iran', `got "${p2.destination}"`);
+
+// Test 3: Route + City
+const p3 = parseCommand('sunflower oil Russia to Afghanistan in Kabul');
+assert('Parser T3 (Route+City): sunflower oil', p3.commodity === 'Sunflower Oil', `got "${p3.commodity}"`);
+assert('Parser T3 (Route+City): Russia', p3.origin === 'Russia', `got "${p3.origin}"`);
+assert('Parser T3 (Route+City): Afghanistan', p3.destination === 'Afghanistan', `got "${p3.destination}"`);
+assert('Parser T3 (Route+City): Kabul', p3.city === 'Kabul', `got "${p3.city}"`);
+
+// Test 4: Country Comparison
+const p4 = parseCommand('compare rice prices in India and Pakistan');
+assert('Parser T4 (Comparison): rice', p4.commodity === 'Rice', `got "${p4.commodity}"`);
+assert('Parser T4 (Comparison): India & Pakistan', p4.comparisonMarkets.includes('India') && p4.comparisonMarkets.includes('Pakistan'), `got ${JSON.stringify(p4.comparisonMarkets)}`);
+assert('Parser T4 (Comparison): no origin', p4.origin === null, `got "${p4.origin}"`);
+
+// Test 5: Global Comparison
+const p5 = parseCommand('compare wheat prices in Russia and Kazakhstan');
+assert('Parser T5 (Global Comparison): wheat', p5.commodity === 'Wheat', `got "${p5.commodity}"`);
+assert('Parser T5 (Global Comparison): Russia & Kazakhstan', p5.comparisonMarkets.includes('Russia') && p5.comparisonMarkets.includes('Kazakhstan'), `got ${JSON.stringify(p5.comparisonMarkets)}`);
+assert('Parser T5 (Global Comparison): no origin', p5.origin === null, `got "${p5.origin}"`);
+
+// Test 6: Commodity Only
+const p6 = parseCommand('wheat price trend');
+assert('Parser T6 (Commodity Only): wheat', p6.commodity === 'Wheat', `got "${p6.commodity}"`);
+assert('Parser T6 (Commodity Only): no origin', p6.origin === null, `got "${p6.origin}"`);
+assert('Parser T6 (Commodity Only): no destination', p6.destination === null, `got "${p6.destination}"`);
+
+// Test 7: City / Market
+const p7 = parseCommand('rice prices in Mumbai');
+assert('Parser T7 (City): rice', p7.commodity === 'Rice', `got "${p7.commodity}"`);
+assert('Parser T7 (City): Mumbai', p7.city === 'Mumbai', `got "${p7.city}"`);
+assert('Parser T7 (City): no origin', p7.origin === null, `got "${p7.origin}"`);
+
+// Test 8: Global Trade Routes
+const p8a = parseCommand('corn Brazil to Egypt');
+assert('Parser T8a (Brazil to Egypt): Corn', p8a.commodity === 'Corn', `got "${p8a.commodity}"`);
+assert('Parser T8a (Brazil to Egypt): Brazil', p8a.origin === 'Brazil', `got "${p8a.origin}"`);
+assert('Parser T8a (Brazil to Egypt): Egypt', p8a.destination === 'Egypt', `got "${p8a.destination}"`);
+
+const p8b = parseCommand('copper Chile to China');
+assert('Parser T8b (Chile to China): Copper', p8b.commodity === 'Copper', `got "${p8b.commodity}"`);
+assert('Parser T8b (Chile to China): Chile', p8b.origin === 'Chile', `got "${p8b.origin}"`);
+assert('Parser T8b (Chile to China): China', p8b.destination === 'China', `got "${p8b.destination}"`);
+
+const p8c = parseCommand('crude oil Saudi Arabia to India');
+assert('Parser T8c (Saudi Arabia to India): Crude Oil', p8c.commodity === 'Crude Oil', `got "${p8c.commodity}"`);
+assert('Parser T8c (Saudi Arabia to India): Saudi Arabia', p8c.origin === 'Saudi Arabia', `got "${p8c.origin}"`);
+assert('Parser T8c (Saudi Arabia to India): India', p8c.destination === 'India', `got "${p8c.destination}"`);
+
+const p8d = parseCommand('compare steel prices in Germany and Turkey');
+assert('Parser T8d (Germany & Turkey): Steel', p8d.commodity === 'Steel', `got "${p8d.commodity}"`);
+assert('Parser T8d (Germany & Turkey): Germany & Turkey', p8d.comparisonMarkets.includes('Germany') && p8d.comparisonMarkets.includes('Turkey'), `got ${JSON.stringify(p8d.comparisonMarkets)}`);
+assert('Parser T8d (Germany & Turkey): no origin', p8d.origin === null, `got "${p8d.origin}"`);
+
 // ---- STEP 2: Simulate the full pipeline with no stored data, FX 502 ----
 console.log('\n=== STEP 2: Simulate pipeline (no stored data, FX 502) ===');
 
