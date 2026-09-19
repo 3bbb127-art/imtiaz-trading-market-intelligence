@@ -5786,6 +5786,7 @@ export function evaluationEngine(
     Confidence = 'LOW';
 
   if (
+    hasVerifiedLocalData &&
     dataPoints >= 5 &&
     findings.conflicts.length ===
       0
