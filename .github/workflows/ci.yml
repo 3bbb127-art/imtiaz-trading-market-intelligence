@@ -1,0 +1,43 @@
+name: Project Verification
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Parser verification
+        run: |
+          if [ -f "src/agent/__test__/rice-demo.ts" ]; then
+            npx tsx src/agent/__test__/rice-demo.ts
+          elif [ -f "src/agent/test/rice-demo.ts" ]; then
+            npx tsx src/agent/test/rice-demo.ts
+          else
+            echo "Parser verification test file not found"
+            exit 1
+          fi
