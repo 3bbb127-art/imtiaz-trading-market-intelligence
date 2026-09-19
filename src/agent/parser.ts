@@ -37,11 +37,6 @@
 
 import type { ParsedIntent } from '../lib/types';
 
-type ExtendedParsedIntent = ParsedIntent & {
-  comparisonMarkets: string[];
-  comparisonContext: string | null;
-};
-
 interface CountryMatch {
   canonical: string;
   start: number;
@@ -674,6 +669,55 @@ function currencyForCountry(country: string | null): string | null {
   return CURRENCIES[country.toLowerCase()] ?? null;
 }
 
+/**
+ * Extracts an explicit key/value field from command text.
+ *
+ * Supported labels:
+ * Commodity:
+ * Origin:
+ * Destination:
+ * Target City/Market:
+ * City:
+ * Market:
+ * Comparison Markets:
+ *
+ * The parser treats explicit labels as higher-confidence input than
+ * automatic natural-language inference.
+ */
+function extractLabeledValue(
+  text: string,
+  labels: string[],
+): string | null {
+  const escapedLabels = labels
+    .sort((a, b) => b.length - a.length)
+    .map(escapeRegExp)
+    .join('|');
+
+  const pattern = new RegExp(
+    `(?:^|\\n)\\s*(?:${escapedLabels})\\s*:\\s*([^\\n]+)`,
+    'i',
+  );
+
+  const match = pattern.exec(text);
+
+  if (!match) {
+    return null;
+  }
+
+  const value = match[1]
+    .trim()
+    .replace(/\s+/g, ' ');
+
+  return value || null;
+}
+
+function splitComparisonValues(value: string): string[] {
+  return value
+    .split(/\s*(?:,|;|\bvs\.?\b|\bversus\b|\band\b|&)\s*/i)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
 /* -------------------------------------------------------------------------- */
 /* COMMODITY DETECTION                                                        */
 /* -------------------------------------------------------------------------- */
@@ -965,7 +1009,13 @@ function detectObjective(text: string): string {
 function detectComparisonContext(
   text: string,
   cityHit: CityHit | null,
+  explicitDestination: string | null,
 ): string | null {
+  // Explicit destination is the strongest context signal.
+  if (explicitDestination) {
+    return explicitDestination;
+  }
+
   // A city is an explicit market context.
   if (cityHit) {
     return cityHit.country;
@@ -1002,7 +1052,44 @@ function detectComparisonMarkets(
   text: string,
   countryMatches: CountryMatch[],
   comparisonContext: string | null,
+  explicitComparisonMarkets: string | null,
 ): string[] {
+  if (explicitComparisonMarkets) {
+    const explicitValues = splitComparisonValues(
+      explicitComparisonMarkets,
+    );
+
+    const explicitCountries = explicitValues
+      .map((value) => canonicalCountry(value))
+      .filter(
+        (country): country is string =>
+          Boolean(country),
+      );
+
+    const uniqueExplicit: string[] = [];
+
+    for (const country of explicitCountries) {
+      if (
+        !uniqueExplicit.some(
+          (existing) =>
+            existing.toLowerCase() ===
+            country.toLowerCase(),
+        )
+      ) {
+        uniqueExplicit.push(country);
+      }
+    }
+
+    return uniqueExplicit
+      .filter(
+        (country) =>
+          !comparisonContext ||
+          country.toLowerCase() !==
+            comparisonContext.toLowerCase(),
+      )
+      .slice(0, 2);
+  }
+
   const uniqueCountries: string[] = [];
 
   for (const match of countryMatches) {
@@ -1270,16 +1357,83 @@ export function parseCommand(
         'Empty command — no market scope detected.',
       ],
       raw: '',
+      comparisonMarkets: [],
+      comparisonContext: null,
     };
   }
 
   const assumptions: string[] = [];
 
-  const commodity = findCommodity(text);
-  const cityHit = findCity(text);
+  /* ---------------------------------------------------------------------- */
+  /* EXPLICIT KEY/VALUE FIELDS                                               */
+  /* ---------------------------------------------------------------------- */
+
+  const explicitCommodity =
+    extractLabeledValue(
+      raw,
+      ['Commodity'],
+    );
+
+  const explicitOrigin =
+    extractLabeledValue(
+      raw,
+      ['Origin'],
+    );
+
+  const explicitDestination =
+    extractLabeledValue(
+      raw,
+      ['Destination'],
+    );
+
+  const explicitCity =
+    extractLabeledValue(
+      raw,
+      [
+        'Target City/Market',
+        'Target City',
+        'City',
+      ],
+    );
+
+  const explicitMarket =
+    extractLabeledValue(
+      raw,
+      ['Market'],
+    );
+
+  const explicitComparisonMarkets =
+    extractLabeledValue(
+      raw,
+      ['Comparison Markets'],
+    );
+
+  /* ---------------------------------------------------------------------- */
+  /* AUTOMATIC DETECTION                                                     */
+  /* ---------------------------------------------------------------------- */
+
+  const commodity =
+    explicitCommodity ??
+    findCommodity(text);
+
+  const cityHit = explicitCity
+    ? {
+        city: titleCase(explicitCity),
+        country:
+          CITIES[
+            explicitCity
+              .trim()
+              .toLowerCase()
+          ] ?? '',
+      }
+    : findCity(text);
+
   const countryMatches =
     findCountryMatches(text);
-  const countries = findCountries(text);
+
+  const countries =
+    findCountries(text);
+
   const currencyHits =
     findCurrencies(text);
 
@@ -1303,7 +1457,14 @@ export function parseCommand(
     comparisonContext =
       detectComparisonContext(
         text,
-        cityHit,
+        cityHit?.country
+          ? cityHit
+          : null,
+        explicitDestination
+          ? canonicalCountry(
+              explicitDestination,
+            )
+          : null,
       );
 
     comparisonMarkets =
@@ -1311,6 +1472,7 @@ export function parseCommand(
         text,
         countryMatches,
         comparisonContext,
+        explicitComparisonMarkets,
       );
   }
 
@@ -1326,10 +1488,16 @@ export function parseCommand(
     );
 
   let origin =
-    route.origin;
+    explicitOrigin
+      ? canonicalCountry(explicitOrigin)
+      : route.origin;
 
   let destination =
-    route.destination;
+    explicitDestination
+      ? canonicalCountry(
+          explicitDestination,
+        )
+      : route.destination;
 
   /**
    * For comparison:
@@ -1350,35 +1518,49 @@ export function parseCommand(
   /* ---------------------------------------------------------------------- */
 
   const city: string | null =
-    cityHit?.city ??
-    null;
+    explicitCity
+      ? titleCase(explicitCity)
+      : cityHit?.city ?? null;
 
   const market: string | null =
-    city
-      ? `${city} Market`
-      : null;
-
-  if (
-    cityHit &&
-    !destination
-  ) {
-    destination =
-      cityHit.country;
-  }
+    explicitMarket
+      ? explicitMarket.trim()
+      : city
+        ? `${city} Market`
+        : null;
 
   /**
-   * Single-country non-comparison command:
-   * "Analyze wheat market in Afghanistan."
+   * IMPORTANT:
+   *
+   * A city/market is geographic market scope.
+   * It must NOT automatically become an import destination.
+   *
+   * Example:
+   * "wheat in Chicago"
+   * -> city: Chicago
+   * -> destination: null
+   *
+   * Example:
+   * "wheat in Kabul"
+   * -> city: Kabul
+   * -> destination: null
+   *
+   * If the user explicitly says:
+   * "Destination: Afghanistan"
+   * then destination remains Afghanistan.
    */
-  if (
-    countries.length === 1 &&
-    !destination &&
-    !origin &&
-    !isComparison
-  ) {
-    destination =
-      countries[0];
-  }
+
+  /**
+   * A single country used as market context also must not
+   * automatically become an import destination.
+   *
+   * Example:
+   * "wheat prices in Afghanistan"
+   * -> destination: null
+   *
+   * Import destination requires explicit route/import semantics
+   * or an explicit Destination field.
+   */
 
   /* ---------------------------------------------------------------------- */
   /* CURRENCIES                                                              */
@@ -1494,34 +1676,31 @@ export function parseCommand(
   /* RESULT                                                                  */
   /* ---------------------------------------------------------------------- */
 
-  const parsedIntent =
-    {
-      commodity:
-        commodity
-          ? titleCase(
-              commodity,
-            )
-          : null,
+  return {
+    commodity:
+      commodity
+        ? titleCase(
+            commodity,
+          )
+        : null,
 
-      origin,
-      destination,
+    origin,
+    destination,
 
-      city,
-      market,
+    city,
+    market,
 
-      currencies,
-      period,
-      objective,
+    currencies,
+    period,
+    objective,
 
-      assumptions,
+    assumptions,
 
-      raw: text,
+    raw: text,
 
-      comparisonMarkets,
-      comparisonContext,
-    } as ExtendedParsedIntent;
-
-  return parsedIntent;
+    comparisonMarkets,
+    comparisonContext,
+  };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1531,9 +1710,6 @@ export function parseCommand(
 export function intentLabel(
   intent: ParsedIntent,
 ): string {
-  const extended =
-    intent as ExtendedParsedIntent;
-
   const parts: string[] = [];
 
   if (intent.commodity) {
@@ -1547,11 +1723,11 @@ export function intentLabel(
    * origin/destination display.
    */
   if (
-    extended.comparisonMarkets &&
-    extended.comparisonMarkets.length >= 2
+    intent.comparisonMarkets &&
+    intent.comparisonMarkets.length >= 2
   ) {
     parts.push(
-      `${extended.comparisonMarkets[0]} vs ${extended.comparisonMarkets[1]}`,
+      `${intent.comparisonMarkets[0]} vs ${intent.comparisonMarkets[1]}`,
     );
   } else {
     if (intent.origin) {
@@ -1572,12 +1748,12 @@ export function intentLabel(
       `in ${intent.city}`,
     );
   } else if (
-    extended.comparisonContext &&
-    extended.comparisonMarkets &&
-    extended.comparisonMarkets.length >= 2
+    intent.comparisonContext &&
+    intent.comparisonMarkets &&
+    intent.comparisonMarkets.length >= 2
   ) {
     parts.push(
-      `for ${extended.comparisonContext}`,
+      `for ${intent.comparisonContext}`,
     );
   }
 
