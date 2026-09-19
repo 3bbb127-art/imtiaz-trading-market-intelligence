@@ -1296,77 +1296,113 @@ function resolveSignals(
     ),
   ];
 
-  const numericRank: Record<
-    string,
-    number
-  > =
+  if (
     kind === 'demand'
-      ? {
-          Weak: 1,
-          Normal: 2,
-          Strong: 3,
-          Surging: 4,
-        }
-      : {
-          Low: 1,
-          Normal: 2,
-          High: 3,
-          Tight: 3,
-          Critical: 4,
-        };
+  ) {
+    const hasWeak =
+      uniqueLevels.includes(
+        'Weak',
+      );
 
-  const hasWeakDemand =
-    kind === 'demand' &&
-    uniqueLevels.includes(
-      'Weak',
-    );
+    const hasStrong =
+      uniqueLevels.some(
+        (level) =>
+          level === 'Strong' ||
+          level === 'Surging',
+      );
 
-  const hasStrongDemand =
-    kind === 'demand' &&
-    uniqueLevels.some(
-      (level) =>
-        level === 'Strong' ||
-        level === 'Surging',
-    );
+    if (
+      hasWeak &&
+      hasStrong
+    ) {
+      return {
+        level: 'Unknown',
+        evidence:
+          signals.map(
+            (signal) =>
+              `Conflicting demand signals: ${signal.level} — ${signal.source} (${signal.url})`,
+          ),
+        conflict: true,
+      };
+    }
 
-  const hasLowSupply =
-    kind === 'supply' &&
-    uniqueLevels.includes(
-      'Low',
-    );
+    const demandRank: Record<
+      string,
+      number
+    > = {
+      Weak: 1,
+      Normal: 2,
+      Strong: 3,
+      Surging: 4,
+    };
+
+    const level =
+      uniqueLevels.reduce(
+        (
+          strongest,
+          current,
+        ) =>
+          (
+            demandRank[current] ??
+            0
+          ) >
+          (
+            demandRank[strongest] ??
+            0
+          )
+            ? current
+            : strongest,
+        uniqueLevels[0],
+      );
+
+    return {
+      level:
+        level as DemandLevel,
+      evidence:
+        signals.map(
+          (signal) =>
+            `Demand (${level}): ${signal.source} (${signal.url})`,
+        ),
+      conflict: false,
+    };
+  }
 
   const hasHighSupply =
-    kind === 'supply' &&
+    uniqueLevels.includes(
+      'High',
+    );
+
+  const hasTightSupply =
     uniqueLevels.some(
       (level) =>
-        level === 'High' ||
         level === 'Tight' ||
         level === 'Critical',
     );
 
-  const hasOpposingSignals =
-    (
-      hasWeakDemand &&
-      hasStrongDemand
-    ) ||
-    (
-      hasLowSupply &&
-      hasHighSupply
-    );
-
   if (
-    hasOpposingSignals
+    hasHighSupply &&
+    hasTightSupply
   ) {
     return {
       level: 'Unknown',
       evidence:
         signals.map(
           (signal) =>
-            `Conflicting ${kind} signals: ${signal.level} — ${signal.source} (${signal.url})`,
+            `Conflicting supply signals: ${signal.level} — ${signal.source} (${signal.url})`,
         ),
       conflict: true,
     };
   }
+
+  const supplyRank: Record<
+    string,
+    number
+  > = {
+    Normal: 2,
+    High: 3,
+    Tight: 3,
+    Critical: 4,
+  };
 
   const level =
     uniqueLevels.reduce(
@@ -1374,8 +1410,14 @@ function resolveSignals(
         strongest,
         current,
       ) =>
-        numericRank[current] >
-        numericRank[strongest]
+        (
+          supplyRank[current] ??
+          0
+        ) >
+        (
+          supplyRank[strongest] ??
+          0
+        )
           ? current
           : strongest,
       uniqueLevels[0],
@@ -1383,13 +1425,11 @@ function resolveSignals(
 
   return {
     level:
-      level as
-        | SupplyLevel
-        | DemandLevel,
+      level as SupplyLevel,
     evidence:
       signals.map(
         (signal) =>
-          `${kind.charAt(0).toUpperCase() + kind.slice(1)} (${level}): ${signal.source} (${signal.url})`,
+          `Supply (${level}): ${signal.source} (${signal.url})`,
       ),
     conflict: false,
   };
