@@ -7,7 +7,7 @@ Global Commodity & International Trade Market Intelligence AI
 3bbb127-art/imtiaz-trading-market-intelligence
 
 ## Current Phase
-Command Parser → Global Market Scope VERIFIED
+Command Parser → Global Market Scope (Verified)
 
 ## Current Task
 Completed: Command Parser → Global Market Scope implementation & verification.
@@ -27,14 +27,20 @@ The system understands any tradeable commodity and any legitimate market/trade c
    - Extended global parser verification suite (`STEP 1B`): 100% PASS (Tests 1–8: Commodity+City, Import Routes, Route+City, Country Comparisons, Global Comparisons, Commodity Only, City/Market, Labeled Key-Value Input, plus global trade routes).
    - Report scope preservation test (`STEP 8`): PASS
    - TypeScript typecheck (`npm run typecheck`): PASS
+   - ESLint (`npm run lint`): PASS
+   - Production Build (`npm run build`): PASS
 
 ## Verification Status
-`PARSER VERIFIED`
+`NOT READY — VERIFICATION INCOMPLETE` (Parser Verified; Downstream Engines Pending)
 
 ## Last Successful Test Execution
 - Command: `npx tsx src/agent/__test__/rice-demo.ts`
 - Result: 100% PASS on all command parser tests (Step 1, Step 1B, Step 8).
 - Command: `npm run typecheck` (`tsc --noEmit -p tsconfig.app.json`)
+- Result: PASS (0 errors)
+- Command: `npm run lint` (`eslint .`)
+- Result: PASS (0 errors)
+- Command: `npm run build` (`vite build && npm run verify-build`)
 - Result: PASS (0 errors)
 
 ## Files Changed
