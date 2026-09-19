@@ -1399,7 +1399,6 @@ function locationsInText(
       a.index - b.index,
   );
 }
-
 function locationNearPrice(
   text: string,
   priceIndex: number,
@@ -1414,11 +1413,8 @@ function locationNearPrice(
   }
 
   /**
-   * Prefer a country/city directly associated with the price.
-   * Examples:
-   *   India stood at $376/ton
-   *   Pakistan $353/ton
-   *   Pakistan 5% broken WR prices ... $452/mt FOB
+   * First preference:
+   * a location directly connected to the price.
    */
   const directCandidates =
     locations
@@ -1446,7 +1442,7 @@ function locationNearPrice(
         ({
           between,
         }) =>
-          /^[\s'’,-]*(?:stood\s+at|was\s+at|were\s+at|is\s+at|are\s+at|at|quoted\s+at|priced\s+at|traded\s+at|have\s+also\s+slumped\s+to|slumped\s+to)?[\s'’,-]*$/i.test(
+          /^[\s'’,:;–—-]*(?:(?:stood|was|were|is|are)\s+)?(?:at|quoted\s+at|priced\s+at|traded\s+at|price\s+was|prices?\s+were|prices?\s+at)?[\s'’,:;–—-]*$/i.test(
             between,
           ),
       )
@@ -1468,19 +1464,41 @@ function locationNearPrice(
   }
 
   /**
-   * Conservative fallback:
-   * only accept a preceding location when it is very close.
-   * This prevents one country from leaking into later prices.
+   * Sentence-local fallback.
+   *
+   * A location can describe a price through a short
+   * descriptive phrase without being immediately adjacent.
    */
-  const nearby =
+  const precedingText =
+    text.slice(
+      0,
+      priceIndex,
+    );
+
+  const lastBoundary =
+    Math.max(
+      precedingText.lastIndexOf('.'),
+      precedingText.lastIndexOf('!'),
+      precedingText.lastIndexOf('?'),
+      precedingText.lastIndexOf('\n'),
+    );
+
+  const sentenceStart =
+    lastBoundary >= 0
+      ? lastBoundary + 1
+      : Math.max(
+          0,
+          priceIndex - 140,
+        );
+
+  const sentenceLocalLocations =
     locations
       .filter(
         (location) =>
+          location.index >=
+            sentenceStart &&
           location.index <
-            priceIndex &&
-          priceIndex -
-            location.index <=
-            45,
+            priceIndex,
       )
       .sort(
         (a, b) =>
@@ -1494,7 +1512,10 @@ function locationNearPrice(
           ),
       );
 
-  return nearby[0] ?? null;
+  return (
+    sentenceLocalLocations[0] ??
+    null
+  );
 }
 function priceIsAttributableToComparisonMarket(
   location: ResearchLocation | null,
