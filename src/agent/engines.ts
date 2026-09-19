@@ -5659,7 +5659,6 @@ export function evaluationEngine(
     confidence =
       'MEDIUM';
   }
-
   let cappedScore =
     clamp(
       opportunityScore,
@@ -5667,9 +5666,49 @@ export function evaluationEngine(
       100,
     );
 
+  const hasVerifiedLocalData =
+    input.city
+      ? input.marketRows.some(
+          (row) =>
+            normalizeText(
+              row.city,
+            ) ===
+              normalizeText(
+                input.city,
+              ) &&
+            (
+              !input.commodity ||
+              normalizeText(
+                row.commodity,
+              ) ===
+                normalizeText(
+                  input.commodity,
+                )
+            ),
+        )
+      : input.destination
+        ? input.marketRows.some(
+            (row) =>
+              normalizeText(
+                row.country,
+              ) ===
+                normalizeText(
+                  input.destination,
+                ) &&
+              (
+                !input.commodity ||
+                normalizeText(
+                  row.commodity,
+                ) ===
+                  normalizeText(
+                    input.commodity,
+                  )
+              ),
+          )
+        : input.marketRows.length > 0;
+
   if (
-    confidence === 'LOW' &&
-    points.length === 0
+    !hasVerifiedLocalData
   ) {
     cappedScore =
       Math.min(
