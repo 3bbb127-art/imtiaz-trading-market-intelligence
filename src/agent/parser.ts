@@ -37,11 +37,6 @@
 
 import type { ParsedIntent } from '../lib/types';
 
-type ExtendedParsedIntent = ParsedIntent & {
-  comparisonMarkets: string[];
-  comparisonContext: string | null;
-};
-
 interface CountryMatch {
   canonical: string;
   start: number;
@@ -1112,12 +1107,35 @@ function detectImportRoute(
   const normalized = normalizeText(text);
 
   /**
-   * Strong explicit route:
-   * from Russia to Afghanistan
-   * from Russia into Afghanistan
+   * Explicit route via country position matching:
+   * "wheat Russia to Iran"
+   * "sunflower oil from Russia into Afghanistan in Kabul"
+   */
+  for (let i = 0; i < countryMatches.length - 1; i += 1) {
+    const c1 = countryMatches[i];
+    const c2 = countryMatches[i + 1];
+
+    if (c1.canonical.toLowerCase() === c2.canonical.toLowerCase()) {
+      continue;
+    }
+
+    const between = normalized.slice(c1.end, c2.start);
+
+    if (/^\s*(?:to|into|toward|towards|→|➜|➡)\s*$/i.test(between)) {
+      return {
+        origin: c1.canonical,
+        destination: c2.canonical,
+      };
+    }
+  }
+
+  /**
+   * Strong explicit route pattern with "from":
+   * "from Russia to Afghanistan"
+   * "from Russia into Afghanistan"
    */
   const explicitRoutePatterns = [
-    /\bfrom\s+([a-z][a-z\s-]+?)\s+(?:to|into|toward|towards)\s+([a-z][a-z\s-]+?)(?=$|[.,!?;:]|\s+for\b|\s+with\b)/i,
+    /\bfrom\s+([a-z][a-z\s-]+?)\s+(?:to|into|toward|towards)\s+([a-z][a-z\s-]+?)(?=$|[.,!?;:]|\s+for\b|\s+with\b|\s+in\b)/i,
 
     /\bfrom\s+([a-z][a-z\s-]+?)\s+(?:to|into|toward|towards)\s+([a-z][a-z\s-]+)/i,
   ];
@@ -1248,6 +1266,54 @@ function detectImportRoute(
 }
 
 /* -------------------------------------------------------------------------- */
+/* KEY-VALUE PARSER                                                           */
+/* -------------------------------------------------------------------------- */
+
+interface KeyValueParseResult {
+  commodity?: string | null;
+  origin?: string | null;
+  destination?: string | null;
+  city?: string | null;
+  market?: string | null;
+  comparisonMarkets?: string[];
+}
+
+function parseKeyValueInput(raw: string): KeyValueParseResult {
+  const result: KeyValueParseResult = {};
+  const lines = raw.split(/[\r\n]+/);
+
+  for (const line of lines) {
+    const match = line.match(/^\s*([^:]+):\s*(.+)$/);
+    if (!match) continue;
+
+    const key = match[1].trim().toLowerCase();
+    const val = match[2].trim();
+    if (!val) continue;
+
+    if (key === 'commodity' || key === 'product') {
+      const found = findCommodity(val);
+      result.commodity = found ? titleCase(found) : titleCase(val);
+    } else if (key === 'origin' || key === 'from') {
+      result.origin = canonicalCountry(val) ?? titleCase(val);
+    } else if (key === 'destination' || key === 'to') {
+      result.destination = canonicalCountry(val) ?? titleCase(val);
+    } else if (key === 'target city/market' || key === 'target city' || key === 'city') {
+      const cityHit = findCity(val);
+      result.city = cityHit?.city ?? titleCase(val);
+    } else if (key === 'market') {
+      result.market = titleCase(val);
+    } else if (key === 'comparison markets' || key === 'comparison' || key === 'compare') {
+      const countries = findCountries(val);
+      if (countries.length > 0) {
+        result.comparisonMarkets = countries;
+      }
+    }
+  }
+
+  return result;
+}
+
+/* -------------------------------------------------------------------------- */
 /* PARSER                                                                     */
 /* -------------------------------------------------------------------------- */
 
@@ -1270,12 +1336,16 @@ export function parseCommand(
         'Empty command — no market scope detected.',
       ],
       raw: '',
+      comparisonMarkets: [],
+      comparisonContext: null,
     };
   }
 
   const assumptions: string[] = [];
 
-  const commodity = findCommodity(text);
+  const kv = parseKeyValueInput(raw);
+
+  const commodity = kv.commodity ?? findCommodity(text);
   const cityHit = findCity(text);
   const countryMatches =
     findCountryMatches(text);
@@ -1283,8 +1353,14 @@ export function parseCommand(
   const currencyHits =
     findCurrencies(text);
 
-  const objective =
+  let objective =
     detectObjective(text);
+
+  if (kv.comparisonMarkets && kv.comparisonMarkets.length > 0) {
+    objective = 'compare';
+  } else if ((kv.origin || kv.destination) && objective === 'market_analysis') {
+    objective = 'import_research';
+  }
 
   const period =
     detectPeriod(text);
@@ -1296,10 +1372,10 @@ export function parseCommand(
   /* COMPARISON                                                              */
   /* ---------------------------------------------------------------------- */
 
-  let comparisonMarkets: string[] = [];
+  let comparisonMarkets: string[] = kv.comparisonMarkets ?? [];
   let comparisonContext: string | null = null;
 
-  if (isComparison) {
+  if (isComparison && comparisonMarkets.length === 0) {
     comparisonContext =
       detectComparisonContext(
         text,
@@ -1311,6 +1387,12 @@ export function parseCommand(
         text,
         countryMatches,
         comparisonContext,
+      );
+  } else if (isComparison) {
+    comparisonContext =
+      detectComparisonContext(
+        text,
+        cityHit,
       );
   }
 
@@ -1326,10 +1408,10 @@ export function parseCommand(
     );
 
   let origin =
-    route.origin;
+    kv.origin ?? route.origin;
 
   let destination =
-    route.destination;
+    kv.destination ?? route.destination;
 
   /**
    * For comparison:
@@ -1350,31 +1432,21 @@ export function parseCommand(
   /* ---------------------------------------------------------------------- */
 
   const city: string | null =
-    cityHit?.city ??
-    null;
+    kv.city ?? cityHit?.city ?? null;
 
   const market: string | null =
-    city
-      ? `${city} Market`
-      : null;
-
-  if (
-    cityHit &&
-    !destination
-  ) {
-    destination =
-      cityHit.country;
-  }
+    kv.market ?? (city ? `${city} Market` : null);
 
   /**
-   * Single-country non-comparison command:
+   * Single-country non-comparison command (when no city is present):
    * "Analyze wheat market in Afghanistan."
    */
   if (
     countries.length === 1 &&
     !destination &&
     !origin &&
-    !isComparison
+    !isComparison &&
+    !city
   ) {
     destination =
       countries[0];
@@ -1494,32 +1566,31 @@ export function parseCommand(
   /* RESULT                                                                  */
   /* ---------------------------------------------------------------------- */
 
-  const parsedIntent =
-    {
-      commodity:
-        commodity
-          ? titleCase(
-              commodity,
-            )
-          : null,
+  const parsedIntent: ParsedIntent = {
+    commodity:
+      commodity
+        ? titleCase(
+            commodity,
+          )
+        : null,
 
-      origin,
-      destination,
+    origin,
+    destination,
 
-      city,
-      market,
+    city,
+    market,
 
-      currencies,
-      period,
-      objective,
+    currencies,
+    period,
+    objective,
 
-      assumptions,
+    assumptions,
 
-      raw: text,
+    raw: text,
 
-      comparisonMarkets,
-      comparisonContext,
-    } as ExtendedParsedIntent;
+    comparisonMarkets,
+    comparisonContext,
+  };
 
   return parsedIntent;
 }
@@ -1531,9 +1602,6 @@ export function parseCommand(
 export function intentLabel(
   intent: ParsedIntent,
 ): string {
-  const extended =
-    intent as ExtendedParsedIntent;
-
   const parts: string[] = [];
 
   if (intent.commodity) {
@@ -1547,11 +1615,11 @@ export function intentLabel(
    * origin/destination display.
    */
   if (
-    extended.comparisonMarkets &&
-    extended.comparisonMarkets.length >= 2
+    intent.comparisonMarkets &&
+    intent.comparisonMarkets.length >= 2
   ) {
     parts.push(
-      `${extended.comparisonMarkets[0]} vs ${extended.comparisonMarkets[1]}`,
+      `${intent.comparisonMarkets[0]} vs ${intent.comparisonMarkets[1]}`,
     );
   } else {
     if (intent.origin) {
@@ -1572,12 +1640,12 @@ export function intentLabel(
       `in ${intent.city}`,
     );
   } else if (
-    extended.comparisonContext &&
-    extended.comparisonMarkets &&
-    extended.comparisonMarkets.length >= 2
+    intent.comparisonContext &&
+    intent.comparisonMarkets &&
+    intent.comparisonMarkets.length >= 2
   ) {
     parts.push(
-      `for ${extended.comparisonContext}`,
+      `for ${intent.comparisonContext}`,
     );
   }
 

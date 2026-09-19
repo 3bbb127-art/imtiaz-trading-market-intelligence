@@ -54,10 +54,7 @@ export interface RunOptions {
  * Parser adds comparison metadata without breaking the existing
  * ParsedIntent type until the shared type definition is upgraded.
  */
-type ExtendedIntent = ParsedIntent & {
-  comparisonMarkets?: string[];
-  comparisonContext?: string | null;
-};
+type ExtendedIntent = ParsedIntent;
 
 /**
  * Extended raw market-row view used only for safe scope filtering.
@@ -80,7 +77,7 @@ function nowIso(): string {
 function getExtendedIntent(
   intent: ParsedIntent,
 ): ExtendedIntent {
-  return intent as ExtendedIntent;
+  return intent;
 }
 
 function normalizeEntity(value: unknown): string {

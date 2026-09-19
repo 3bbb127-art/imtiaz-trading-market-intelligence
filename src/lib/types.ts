@@ -129,6 +129,8 @@ export interface ParsedIntent {
   objective: string;
   assumptions: string[];
   raw: string;
+  comparisonMarkets: string[];
+  comparisonContext?: string | null;
 }
 
 export interface WorkflowStep {
