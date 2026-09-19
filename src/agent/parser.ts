@@ -514,6 +514,8 @@ const COMMODITIES = [
   'sunflower oil',
   'palm oil',
   'soybean oil',
+  'crude oil',
+  'oil',
   'corn',
   'maize',
   'barley',
@@ -566,6 +568,8 @@ const COMMODITY_CATEGORIES: Record<string, string> = {
   'sunflower oil': 'Edible Oils',
   'palm oil': 'Edible Oils',
   'soybean oil': 'Edible Oils',
+  'crude oil': 'Energy',
+  oil: 'Edible Oils',
 
   sugar: 'Sweeteners',
 
@@ -1114,12 +1118,12 @@ function detectImportRoute(
   /**
    * Strong explicit route:
    * from Russia to Afghanistan
-   * from Russia into Afghanistan
+   * Russia to Iran
+   * corn Brazil to Egypt
    */
   const explicitRoutePatterns = [
-    /\bfrom\s+([a-z][a-z\s-]+?)\s+(?:to|into|toward|towards)\s+([a-z][a-z\s-]+?)(?=$|[.,!?;:]|\s+for\b|\s+with\b)/i,
-
-    /\bfrom\s+([a-z][a-z\s-]+?)\s+(?:to|into|toward|towards)\s+([a-z][a-z\s-]+)/i,
+    /\b(?:from\s+)?([a-z][a-z\s-]+?)\s+(?:to|into|toward|towards)\s+([a-z][a-z\s-]+?)(?=$|[.,!?;:]|\s+for\b|\s+with\b|\s+in\b)/i,
+    /\b(?:from\s+)?([a-z][a-z\s-]+?)\s+(?:to|into|toward|towards)\s+([a-z][a-z\s-]+)/i,
   ];
 
   for (const pattern of explicitRoutePatterns) {
@@ -1129,33 +1133,25 @@ function detectImportRoute(
       continue;
     }
 
-    const origin = canonicalCountry(
-      match[1].trim(),
-    );
+    const leftCountries = findCountries(match[1].trim());
+    const rightCountries = findCountries(match[2].trim());
 
-    const destination = canonicalCountry(
-      match[2].trim(),
-    );
+    if (leftCountries.length > 0 && rightCountries.length > 0) {
+      const origin = leftCountries[leftCountries.length - 1];
+      const destination = rightCountries[0];
 
-    if (origin || destination) {
-      return {
-        origin,
-        destination,
-      };
+      if (origin && destination && origin !== destination) {
+        return {
+          origin,
+          destination,
+        };
+      }
     }
   }
 
   const lower = normalized.toLowerCase();
 
-  const isImportCommand =
-    /\bimport\b|\bimports\b|\bimporting\b|\bimported\b/.test(
-      lower,
-    );
-
-  if (
-    !isImportCommand ||
-    countryMatches.length < 2
-  ) {
+  if (countryMatches.length < 2) {
     return {
       origin: null,
       destination: null,
@@ -1215,11 +1211,12 @@ function detectImportRoute(
   /**
    * Fallback for:
    * Russia to Afghanistan
+   * corn Brazil to Egypt
    */
   if (routeEnd !== -1) {
     const before = countryMatches.filter(
       (match) =>
-        match.end <= routeEnd,
+        match.end <= routeEnd + 4,
     );
 
     const after = countryMatches.filter(
@@ -1227,18 +1224,16 @@ function detectImportRoute(
         match.start >= routeEnd,
     );
 
-    return {
-      origin:
-        before.length > 0
-          ? before[before.length - 1]
-              .canonical
-          : null,
-
-      destination:
-        after.length > 0
-          ? after[0].canonical
-          : null,
-    };
+    if (before.length > 0 && after.length > 0) {
+      const orig = before[before.length - 1].canonical;
+      const dest = after[0].canonical;
+      if (orig !== dest) {
+        return {
+          origin: orig,
+          destination: dest,
+        };
+      }
+    }
   }
 
   return {
@@ -1250,6 +1245,82 @@ function detectImportRoute(
 /* -------------------------------------------------------------------------- */
 /* PARSER                                                                     */
 /* -------------------------------------------------------------------------- */
+
+function parseKeyValueFields(raw: string): {
+  commodity: string | null;
+  origin: string | null;
+  destination: string | null;
+  city: string | null;
+  market: string | null;
+  comparisonMarkets: string[];
+  comparisonContext: string | null;
+  hasKeyValue: boolean;
+} {
+  const lines = raw.split(/[\r\n]+/);
+  let commodity: string | null = null;
+  let origin: string | null = null;
+  let destination: string | null = null;
+  let city: string | null = null;
+  let market: string | null = null;
+  const comparisonMarkets: string[] = [];
+  let comparisonContext: string | null = null;
+  let hasKeyValue = false;
+
+  for (const line of lines) {
+    const colonIdx = line.indexOf(':');
+    if (colonIdx === -1) continue;
+
+    const label = line.slice(0, colonIdx).trim().toLowerCase();
+    const val = line.slice(colonIdx + 1).trim();
+    if (!val) continue;
+
+    if (label === 'commodity') {
+      commodity = findCommodity(val) ? titleCase(findCommodity(val)!) : titleCase(val);
+      hasKeyValue = true;
+    } else if (label === 'origin' || label === 'source' || label === 'from') {
+      origin = canonicalCountry(val) ?? titleCase(val);
+      hasKeyValue = true;
+    } else if (label === 'destination' || label === 'target country' || label === 'to') {
+      destination = canonicalCountry(val) ?? titleCase(val);
+      hasKeyValue = true;
+    } else if (
+      label === 'target city/market' ||
+      label === 'target city' ||
+      label === 'city' ||
+      label === 'location'
+    ) {
+      const cityHit = findCity(val);
+      city = cityHit ? cityHit.city : titleCase(val);
+      hasKeyValue = true;
+    } else if (label === 'market' || label === 'target market') {
+      market = titleCase(val);
+      hasKeyValue = true;
+    } else if (label === 'comparison markets' || label === 'compare') {
+      const parts = val.split(/[,&]|\bvs\.?\b|\bversus\b|\band\b/i);
+      for (const part of parts) {
+        const c = canonicalCountry(part.trim());
+        if (c && !comparisonMarkets.includes(c)) {
+          comparisonMarkets.push(c);
+        }
+      }
+      hasKeyValue = true;
+    } else if (label === 'comparison context' || label === 'context' || label === 'for') {
+      comparisonContext = canonicalCountry(val) ?? titleCase(val);
+      hasKeyValue = true;
+    }
+  }
+
+  return {
+    commodity,
+    origin,
+    destination,
+    city,
+    market,
+    comparisonMarkets,
+    comparisonContext,
+    hasKeyValue,
+  };
+}
 
 export function parseCommand(
   raw: string,
@@ -1273,9 +1344,11 @@ export function parseCommand(
     };
   }
 
+  const kv = parseKeyValueFields(raw);
+
   const assumptions: string[] = [];
 
-  const commodity = findCommodity(text);
+  const commodity = kv.commodity ?? findCommodity(text);
   const cityHit = findCity(text);
   const countryMatches =
     findCountryMatches(text);
@@ -1284,7 +1357,9 @@ export function parseCommand(
     findCurrencies(text);
 
   const objective =
-    detectObjective(text);
+    kv.comparisonMarkets.length >= 2
+      ? 'compare'
+      : detectObjective(text);
 
   const period =
     detectPeriod(text);
@@ -1296,22 +1371,26 @@ export function parseCommand(
   /* COMPARISON                                                              */
   /* ---------------------------------------------------------------------- */
 
-  let comparisonMarkets: string[] = [];
-  let comparisonContext: string | null = null;
+  let comparisonMarkets: string[] = kv.comparisonMarkets;
+  let comparisonContext: string | null = kv.comparisonContext;
 
   if (isComparison) {
-    comparisonContext =
-      detectComparisonContext(
-        text,
-        cityHit,
-      );
+    if (!comparisonContext) {
+      comparisonContext =
+        detectComparisonContext(
+          text,
+          cityHit,
+        );
+    }
 
-    comparisonMarkets =
-      detectComparisonMarkets(
-        text,
-        countryMatches,
-        comparisonContext,
-      );
+    if (comparisonMarkets.length === 0) {
+      comparisonMarkets =
+        detectComparisonMarkets(
+          text,
+          countryMatches,
+          comparisonContext,
+        );
+    }
   }
 
   /* ---------------------------------------------------------------------- */
@@ -1325,11 +1404,9 @@ export function parseCommand(
       isComparison,
     );
 
-  let origin =
-    route.origin;
+  let origin = kv.origin ?? route.origin;
 
-  let destination =
-    route.destination;
+  let destination = kv.destination ?? route.destination;
 
   /**
    * For comparison:
@@ -1350,13 +1427,10 @@ export function parseCommand(
   /* ---------------------------------------------------------------------- */
 
   const city: string | null =
-    cityHit?.city ??
-    null;
+    kv.city ?? cityHit?.city ?? null;
 
   const market: string | null =
-    city
-      ? `${city} Market`
-      : null;
+    kv.market ?? (city ? `${city} Market` : null);
 
   if (
     cityHit &&
