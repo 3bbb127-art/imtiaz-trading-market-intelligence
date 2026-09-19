@@ -1296,17 +1296,10 @@ function resolveSignals(
     ),
   ];
 
-  /**
-   * Signals on the same directional side are not treated
-   * as a true conflict.
-   *
-   * Example:
-   * Strong + Normal demand = Strong
-   * Strong + Surging demand = Surging
-   *
-   * A real conflict requires opposing signals.
-   */
-  const rank =
+  const numericRank: Record<
+    string,
+    number
+  > =
     kind === 'demand'
       ? {
           Weak: 1,
@@ -1318,31 +1311,48 @@ function resolveSignals(
           Low: 1,
           Normal: 2,
           High: 3,
-          Abundant: 4,
+          Tight: 3,
+          Critical: 4,
         };
 
+  const hasWeakDemand =
+    kind === 'demand' &&
+    uniqueLevels.includes(
+      'Weak',
+    );
+
+  const hasStrongDemand =
+    kind === 'demand' &&
+    uniqueLevels.some(
+      (level) =>
+        level === 'Strong' ||
+        level === 'Surging',
+    );
+
+  const hasLowSupply =
+    kind === 'supply' &&
+    uniqueLevels.includes(
+      'Low',
+    );
+
+  const hasHighSupply =
+    kind === 'supply' &&
+    uniqueLevels.some(
+      (level) =>
+        level === 'High' ||
+        level === 'Tight' ||
+        level === 'Critical',
+    );
+
   const hasOpposingSignals =
-    kind === 'demand'
-      ? (
-          uniqueLevels.includes(
-            'Weak' as DemandLevel,
-          ) &&
-          uniqueLevels.some(
-            (level) =>
-              level === 'Strong' ||
-              level === 'Surging',
-          )
-        )
-      : (
-          uniqueLevels.includes(
-            'Low' as SupplyLevel,
-          ) &&
-          uniqueLevels.some(
-            (level) =>
-              level === 'High' ||
-              level === 'Abundant',
-          )
-        );
+    (
+      hasWeakDemand &&
+      hasStrongDemand
+    ) ||
+    (
+      hasLowSupply &&
+      hasHighSupply
+    );
 
   if (
     hasOpposingSignals
@@ -1364,19 +1374,18 @@ function resolveSignals(
         strongest,
         current,
       ) =>
-        (rank as Record<string, number>)[
-          current
-        ] >
-        (rank as Record<string, number>)[
-          strongest
-        ]
+        numericRank[current] >
+        numericRank[strongest]
           ? current
           : strongest,
       uniqueLevels[0],
     );
 
   return {
-    level,
+    level:
+      level as
+        | SupplyLevel
+        | DemandLevel,
     evidence:
       signals.map(
         (signal) =>
