@@ -5782,30 +5782,6 @@ export function evaluationEngine(
     input.stockRows.length +
     input.shipmentRows.length;
 
-  let confidence:
-    Confidence = 'LOW';
-
-  if (
-    hasVerifiedLocalData &&
-    dataPoints >= 5 &&
-    findings.conflicts.length ===
-      0
-  ) {
-    confidence =
-      'HIGH';
-  } else if (
-    dataPoints >= 2
-  ) {
-    confidence =
-      'MEDIUM';
-  }
-  let cappedScore =
-    clamp(
-      opportunityScore,
-      0,
-      100,
-    );
-
   const hasVerifiedLocalData =
     input.city
       ? input.marketRows.some(
@@ -5847,6 +5823,31 @@ export function evaluationEngine(
           )
         : input.marketRows.length > 0;
 
+  let confidence:
+    Confidence = 'LOW';
+
+  if (
+    hasVerifiedLocalData &&
+    dataPoints >= 5 &&
+    findings.conflicts.length ===
+      0
+  ) {
+    confidence =
+      'HIGH';
+  } else if (
+    dataPoints >= 2
+  ) {
+    confidence =
+      'MEDIUM';
+  }
+
+  let cappedScore =
+    clamp(
+      opportunityScore,
+      0,
+      100,
+    );
+
   if (
     !hasVerifiedLocalData
   ) {
@@ -5856,7 +5857,6 @@ export function evaluationEngine(
         30,
       );
   }
-
   return {
     commodity:
       input.commodity ??
