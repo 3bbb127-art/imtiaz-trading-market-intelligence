@@ -88,31 +88,41 @@ Only add items after current evidence confirms them.
 - Downstream intelligence depends on correct scope.
 
 ## Verification Status
-`NOT VERIFIED`
+`NOT VERIFIED` (Local verification passed; authoritative status remains NOT VERIFIED until independent GitHub CI passes)
 
 ## Current Active Agent
-Set by the actual active Agent.
+Jules
 
 ## Previous Agent
-Record on handoff.
+N/A
 
 ## Agent Status
-Use the controlled states defined in `AGENTS.md`.
+ACTIVE
 
 ## Handoff Reason
-Record only when applicable.
+N/A
 
 ## Last Successful Test
-Record current evidence only.
+- `npm ci` (passed)
+- `npm run typecheck` (passed, zero errors)
+- `npm run lint` (passed, zero warnings/errors)
+- `npm run build` (passed, bundle verified)
+- `npx tsx src/agent/__test__/rice-demo.ts` (passed, all assertions passed)
+- Comparison parser tests (`compare rice prices in India and Pakistan`, `compare wheat prices in Russia and Kazakhstan`, `compare steel prices in Germany and Turkey`, etc. - all passed)
 
 ## Last Failed Test
-Record current evidence only.
+None in current run.
 
 ## Files Changed
-Record actual changes only.
+- `.gitignore`
+- `src/lib/types.ts`
+- `src/agent/parser.ts`
+- `src/agent/executor.ts`
+- `src/agent/engines.ts`
+- `PROJECT_STATUS.md`
 
 ## Last Commit
-Record actual commit.
+Pending submit
 
 ## Next Action
 Re-verify current parser changes and tests before any additional feature work.
