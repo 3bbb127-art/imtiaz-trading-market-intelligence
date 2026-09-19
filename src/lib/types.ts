@@ -1,3 +1,4 @@
+
 // Domain types shared across the app. These mirror the database tables and the
 // structured payloads the Agent engine produces.
 
@@ -124,6 +125,8 @@ export interface ParsedIntent {
   destination: string | null;
   city: string | null;
   market: string | null;
+  comparisonMarkets: string[];
+  comparisonContext?: string | null;
   currencies: string[];
   period: string;
   objective: string;
