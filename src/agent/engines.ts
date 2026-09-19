@@ -1296,8 +1296,56 @@ function resolveSignals(
     ),
   ];
 
+  /**
+   * Signals on the same directional side are not treated
+   * as a true conflict.
+   *
+   * Example:
+   * Strong + Normal demand = Strong
+   * Strong + Surging demand = Surging
+   *
+   * A real conflict requires opposing signals.
+   */
+  const rank =
+    kind === 'demand'
+      ? {
+          Weak: 1,
+          Normal: 2,
+          Strong: 3,
+          Surging: 4,
+        }
+      : {
+          Low: 1,
+          Normal: 2,
+          High: 3,
+          Abundant: 4,
+        };
+
+  const hasOpposingSignals =
+    kind === 'demand'
+      ? (
+          uniqueLevels.includes(
+            'Weak' as DemandLevel,
+          ) &&
+          uniqueLevels.some(
+            (level) =>
+              level === 'Strong' ||
+              level === 'Surging',
+          )
+        )
+      : (
+          uniqueLevels.includes(
+            'Low' as SupplyLevel,
+          ) &&
+          uniqueLevels.some(
+            (level) =>
+              level === 'High' ||
+              level === 'Abundant',
+          )
+        );
+
   if (
-    uniqueLevels.length > 1
+    hasOpposingSignals
   ) {
     return {
       level: 'Unknown',
@@ -1311,7 +1359,21 @@ function resolveSignals(
   }
 
   const level =
-    uniqueLevels[0];
+    uniqueLevels.reduce(
+      (
+        strongest,
+        current,
+      ) =>
+        (rank as Record<string, number>)[
+          current
+        ] >
+        (rank as Record<string, number>)[
+          strongest
+        ]
+          ? current
+          : strongest,
+      uniqueLevels[0],
+    );
 
   return {
     level,
@@ -1322,7 +1384,7 @@ function resolveSignals(
       ),
     conflict: false,
   };
-} 
+}
 // -----------------------------------------------------------------------------
 // Price location extraction
 // -----------------------------------------------------------------------------
