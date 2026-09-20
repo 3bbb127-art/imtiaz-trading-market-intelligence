@@ -201,22 +201,132 @@ function scopeMarketRows(
   const comparisonMarkets =
     intent.comparisonMarkets ?? [];
 
+  /**
+   * Comparison scope:
+   * keep only observations belonging to the requested
+   * comparison markets.
+   */
   if (
-    intent.objective !== 'compare' ||
-    comparisonMarkets.length < 2
+    intent.objective === 'compare' &&
+    comparisonMarkets.length >= 2
   ) {
-    return rows;
-  }
-
-  const filtered = rows.filter(
-    (row) =>
+    return rows.filter((row) =>
       isComparisonMarketRow(
         row,
         comparisonMarkets,
       ),
-  );
+    );
+  }
 
-  return filtered;
+  /**
+   * City / market scope:
+   * a requested city is a market context, NOT an import
+   * destination. Exclude unrelated geographic observations.
+   *
+   * Truly global observations with no geographic location
+   * remain eligible.
+   */
+  if (intent.city) {
+    const targetCity =
+      intent.city.trim().toLowerCase();
+
+    return rows.filter((row) => {
+      const record =
+        row as RawMarketRow &
+          Record<string, unknown>;
+
+      const city =
+        typeof record.city === 'string'
+          ? record.city
+          : '';
+
+      const market =
+        typeof record.market === 'string'
+          ? record.market
+          : '';
+
+      const location =
+        typeof record.location === 'string'
+          ? record.location
+          : '';
+
+      const country =
+        typeof record.country === 'string'
+          ? record.country
+          : '';
+
+      const geographicText = [
+        city,
+        market,
+        location,
+        country,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      /**
+       * No geographic metadata means the record is
+       * treated as genuinely global rather than assigned
+       * to an unrelated city.
+       */
+      if (!geographicText) {
+        return true;
+      }
+
+      return geographicText.includes(targetCity);
+    });
+  }
+
+  /**
+   * Destination scope:
+   * only apply when destination is explicitly present.
+   * Never infer destination from city.
+   */
+  if (intent.destination) {
+    const targetDestination =
+      intent.destination.trim().toLowerCase();
+
+    return rows.filter((row) => {
+      const record =
+        row as RawMarketRow &
+          Record<string, unknown>;
+
+      const country =
+        typeof record.country === 'string'
+          ? record.country
+          : '';
+
+      const location =
+        typeof record.location === 'string'
+          ? record.location
+          : '';
+
+      const market =
+        typeof record.market === 'string'
+          ? record.market
+          : '';
+
+      const geographicText = [
+        country,
+        location,
+        market,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      if (!geographicText) {
+        return true;
+      }
+
+      return geographicText.includes(
+        targetDestination,
+      );
+    });
+  }
+
+  return rows;
 }
 
 /**
