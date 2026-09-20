@@ -479,26 +479,59 @@ function researchResultMatchesMarket(
 function scopeResearchResults(
   input: EngineInput,
 ): ResearchProviderResult[] {
+  const results =
+    input.researchResults;
+
   if (
-    !isComparisonWorkflow(input)
+    isComparisonWorkflow(input)
   ) {
-    return input.researchResults;
+    const markets =
+      comparisonMarkets(input);
+
+    return results.filter(
+      (result) =>
+        markets.some((market) =>
+          researchResultMatchesMarket(
+            result,
+            market,
+          ),
+        ),
+    );
   }
 
-  const markets =
-    comparisonMarkets(input);
+  const scopeTerms = [
+    input.city,
+    input.destination,
+    input.origin,
+  ]
+    .map(normalizeText)
+    .filter(Boolean);
 
-  return input.researchResults.filter(
-    (result) =>
-      markets.some((market) =>
-        researchResultMatchesMarket(
-          result,
-          market,
-        ),
-      ),
-  );
+  if (
+    scopeTerms.length === 0
+  ) {
+    return results;
+  }
+
+  const scoped =
+    results.filter(
+      (result) => {
+        const text =
+          normalizeText(
+            `${result.title} ${result.snippet}`,
+          );
+
+        return scopeTerms.some(
+          (term) =>
+            text.includes(term),
+        );
+      },
+    );
+
+  return scoped.length > 0
+    ? scoped
+    : results;
 }
-
 // -----------------------------------------------------------------------------
 // Research units / FX
 // -----------------------------------------------------------------------------
@@ -4618,19 +4651,19 @@ export function dataGapsEngine(
         `Web research returned results, but none could be directly attributed to ${markets[0]} or ${markets[1]}.`,
       );
     }
-  } else if (
-    input.marketRows.length ===
-    0
-  ) {
-    gaps.push(
-      'No stored market observations for the requested market scope.',
-    );
-  }
+  } else {
+    const scopedRows =
+      scopeMarketRows(input);
 
-  if (
-    input.fxRates.length ===
-    0
-  ) {
+    if (
+      scopedRows.length ===
+      0
+    ) {
+      gaps.push(
+        'No stored market observations for the requested market scope.',
+      );
+    }
+  }
     gaps.push(
       'No live FX rates available — currency conversions may require approximate fallback rates (ESTIMATED).',
     );
@@ -5775,12 +5808,18 @@ export function evaluationEngine(
         competitionPenalty,
     );
 
-  const dataPoints =
-    points.length +
-    input.marketRows.length +
-    input.researchResults.length +
-    input.stockRows.length +
-    input.shipmentRows.length;
+  const scopedRows =
+  scopeMarketRows(input);
+
+const scopedResearch =
+  scopeResearchResults(input);
+
+const dataPoints =
+  points.length +
+  scopedRows.length +
+  scopedResearch.length +
+  input.stockRows.length +
+  input.shipmentRows.length;
 
   const hasVerifiedLocalData =
     input.city
