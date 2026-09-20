@@ -1550,19 +1550,6 @@ function locationsInText(
       a.index - b.index,
   );
 }
-function locationNearPrice(
-  text: string,
-  priceIndex: number,
-): ResearchLocation | null {
-  const locations =
-    locationsInText(text);
-
-  if (
-    locations.length === 0
-  ) {
-    return null;
-  }
-
   /**
    * First preference:
    * a location directly connected to the price.
