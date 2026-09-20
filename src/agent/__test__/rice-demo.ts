@@ -24,7 +24,61 @@ assert('Origin = India', intent.origin === 'India', `got "${intent.origin}"`);
 assert('Destination = Afghanistan', intent.destination === 'Afghanistan', `got "${intent.destination}"`);
 assert('City = Mazar-e-Sharif', intent.city === 'Mazar-e-Sharif', `got "${intent.city}"`);
 assert('Commodity = Rice', intent.commodity === 'Rice', `got "${intent.commodity}"`);
+const chicagoIntent = parseCommand('Analyze wheat market in Chicago.');
 
+console.log(
+  'Chicago:',
+  JSON.stringify(
+    {
+      commodity: chicagoIntent.commodity,
+      origin: chicagoIntent.origin,
+      destination: chicagoIntent.destination,
+      city: chicagoIntent.city,
+    },
+    null,
+    2,
+  ),
+);
+
+assert(
+  'Chicago destination is null',
+  chicagoIntent.destination === null,
+  `got "${chicagoIntent.destination}"`,
+);
+
+assert(
+  'Chicago city is Chicago',
+  chicagoIntent.city === 'Chicago',
+  `got "${chicagoIntent.city}"`,
+);
+
+const mumbaiIntent = parseCommand('Analyze rice prices in Mumbai.');
+
+console.log(
+  'Mumbai:',
+  JSON.stringify(
+    {
+      commodity: mumbaiIntent.commodity,
+      origin: mumbaiIntent.origin,
+      destination: mumbaiIntent.destination,
+      city: mumbaiIntent.city,
+    },
+    null,
+    2,
+  ),
+);
+
+assert(
+  'Mumbai destination is null',
+  mumbaiIntent.destination === null,
+  `got "${mumbaiIntent.destination}"`,
+);
+
+assert(
+  'Mumbai city is Mumbai',
+  mumbaiIntent.city === 'Mumbai',
+  `got "${mumbaiIntent.city}"`,
+);
 // ---- STEP 2: Simulate the full pipeline with no stored data, FX 502 ----
 console.log('\n=== STEP 2: Simulate pipeline (no stored data, FX 502) ===');
 
