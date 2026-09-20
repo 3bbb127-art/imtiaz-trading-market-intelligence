@@ -1564,12 +1564,11 @@ function locationNearPrice(
   }
 
   /**
-   * Only accept a location when it is directly connected
-   * to the price.
+   * First preference:
+   * a location directly connected to the price.
    *
-   * Do not inherit a location merely because it appears
-   * somewhere in the same sentence. That can incorrectly
-   * label a Vietnam price as a Mazar price.
+   * The connector must be explicit. A location followed only
+   * by whitespace or punctuation is not enough.
    */
   const directCandidates =
     locations
@@ -1597,7 +1596,10 @@ function locationNearPrice(
         ({
           between,
         }) =>
-          /^[\s'’,:;–—-]*(?:(?:stood|was|were|is|are)\s+)?(?:at|quoted\s+at|priced\s+at|traded\s+at|price\s+was|prices?\s+were|prices?\s+at)[\s'’,:;–—-]*$/i.test(
+          /^[\s'’,:;–—-]*(?:(?:stood|was|were|is|are)\s+)(?:at|quoted\s+at|priced\s+at|traded\s+at|price\s+was|prices?\s+were|prices?\s+at)[\s'’,:;–—-]*$/i.test(
+            between,
+          ) ||
+          /^[\s'’,:;–—-]+(?:at|quoted\s+at|priced\s+at|traded\s+at|price\s+was|prices?\s+were|prices?\s+at)[\s'’,:;–—-]*$/i.test(
             between,
           ),
       )
@@ -1611,11 +1613,71 @@ function locationNearPrice(
           ),
       );
 
+  if (
+    directCandidates.length > 0
+  ) {
+    return directCandidates[0]
+      .location;
+  }
+
+  /**
+   * Sentence-local fallback.
+   *
+   * This allows natural constructions such as:
+   * "In Mazar-e-Sharif, rice prices..."
+   *
+   * but only within the same sentence and only when the
+   * location is the closest location before the price.
+   */
+  const precedingText =
+    text.slice(
+      0,
+      priceIndex,
+    );
+
+  const lastBoundary =
+    Math.max(
+      precedingText.lastIndexOf('.'),
+      precedingText.lastIndexOf('!'),
+      precedingText.lastIndexOf('?'),
+      precedingText.lastIndexOf('\n'),
+    );
+
+  const sentenceStart =
+    lastBoundary >= 0
+      ? lastBoundary + 1
+      : Math.max(
+          0,
+          priceIndex - 140,
+        );
+
+  const sentenceLocalLocations =
+    locations
+      .filter(
+        (location) =>
+          location.index >=
+            sentenceStart &&
+          location.index <
+            priceIndex,
+      )
+      .sort(
+        (a, b) =>
+          (
+            priceIndex -
+            a.index
+          ) -
+          (
+            priceIndex -
+            b.index
+          ),
+      );
+
   return (
-    directCandidates[0]?.location ??
+    sentenceLocalLocations[0] ??
     null
   );
 }
+
 function priceIsAttributableToComparisonMarket(
   location: ResearchLocation | null,
   text: string,
@@ -1666,7 +1728,7 @@ function priceIsAttributableToComparisonMarket(
   /**
    * Reject local text that mentions multiple comparison markets.
    * Example:
-   *   "India ... Pakistan ... $353"
+   * "India ... Pakistan ... $353"
    *
    * Without a direct location immediately attached to the price,
    * attribution is ambiguous and must not be invented.
