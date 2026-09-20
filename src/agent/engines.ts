@@ -1564,8 +1564,12 @@ function locationNearPrice(
   }
 
   /**
-   * First preference:
-   * a location directly connected to the price.
+   * Only accept a location when it is directly connected
+   * to the price.
+   *
+   * Do not inherit a location merely because it appears
+   * somewhere in the same sentence. That can incorrectly
+   * label a Vietnam price as a Mazar price.
    */
   const directCandidates =
     locations
@@ -1593,7 +1597,7 @@ function locationNearPrice(
         ({
           between,
         }) =>
-          /^[\s'’,:;–—-]*(?:(?:stood|was|were|is|are)\s+)?(?:at|quoted\s+at|priced\s+at|traded\s+at|price\s+was|prices?\s+were|prices?\s+at)?[\s'’,:;–—-]*$/i.test(
+          /^[\s'’,:;–—-]*(?:(?:stood|was|were|is|are)\s+)?(?:at|quoted\s+at|priced\s+at|traded\s+at|price\s+was|prices?\s+were|prices?\s+at)[\s'’,:;–—-]*$/i.test(
             between,
           ),
       )
@@ -1607,64 +1611,8 @@ function locationNearPrice(
           ),
       );
 
-  if (
-    directCandidates.length > 0
-  ) {
-    return directCandidates[0]
-      .location;
-  }
-
-  /**
-   * Sentence-local fallback.
-   *
-   * A location can describe a price through a short
-   * descriptive phrase without being immediately adjacent.
-   */
-  const precedingText =
-    text.slice(
-      0,
-      priceIndex,
-    );
-
-  const lastBoundary =
-    Math.max(
-      precedingText.lastIndexOf('.'),
-      precedingText.lastIndexOf('!'),
-      precedingText.lastIndexOf('?'),
-      precedingText.lastIndexOf('\n'),
-    );
-
-  const sentenceStart =
-    lastBoundary >= 0
-      ? lastBoundary + 1
-      : Math.max(
-          0,
-          priceIndex - 140,
-        );
-
-  const sentenceLocalLocations =
-    locations
-      .filter(
-        (location) =>
-          location.index >=
-            sentenceStart &&
-          location.index <
-            priceIndex,
-      )
-      .sort(
-        (a, b) =>
-          (
-            priceIndex -
-            a.index
-          ) -
-          (
-            priceIndex -
-            b.index
-          ),
-      );
-
   return (
-    sentenceLocalLocations[0] ??
+    directCandidates[0]?.location ??
     null
   );
 }
