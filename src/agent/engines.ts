@@ -1682,7 +1682,7 @@ function extractPricePointsFromResearch(
   const points: PricePoint[] = [];
 
   const research =
-    scopeResearchResults(input);
+    input.researchResults;
 
   const isComparison =
     isComparisonWorkflow(input);
