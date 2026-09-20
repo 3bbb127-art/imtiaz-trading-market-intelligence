@@ -4651,7 +4651,7 @@ export function dataGapsEngine(
         `Web research returned results, but none could be directly attributed to ${markets[0]} or ${markets[1]}.`,
       );
     }
-  } else {
+ } else {
     const scopedRows =
       scopeMarketRows(input);
 
@@ -4664,11 +4664,15 @@ export function dataGapsEngine(
       );
     }
   }
+
+  if (
+    input.fxRates.length ===
+    0
+  ) {
     gaps.push(
       'No live FX rates available — currency conversions may require approximate fallback rates (ESTIMATED).',
     );
   }
-
   if (
     input.researchStatus !==
     'OK'
