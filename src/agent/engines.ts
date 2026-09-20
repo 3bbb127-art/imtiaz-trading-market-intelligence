@@ -1545,7 +1545,62 @@ function locationsInText(
     }
   }
 
-  return results.sort(
+  /**
+   * Remove overlapping location aliases.
+   *
+   * Example:
+   * "Mazar-e-Sharif" must be treated as ONE city,
+   * not as both "Mazar-e-Sharif" and "Mazar".
+   *
+   * Longer location names always take priority.
+   */
+  const sorted =
+    results.sort(
+      (a, b) =>
+        a.index - b.index ||
+        b.name.length -
+          a.name.length,
+    );
+
+  const filtered: ResearchLocation[] = [];
+
+  for (
+    const candidate of sorted
+  ) {
+    const candidateStart =
+      candidate.index;
+
+    const candidateEnd =
+      candidate.index +
+      candidate.name.length;
+
+    const overlaps =
+      filtered.some(
+        (existing) => {
+          const existingStart =
+            existing.index;
+
+          const existingEnd =
+            existing.index +
+            existing.name.length;
+
+          return (
+            candidateStart <
+              existingEnd &&
+            candidateEnd >
+              existingStart
+          );
+        },
+      );
+
+    if (!overlaps) {
+      filtered.push(
+        candidate,
+      );
+    }
+  }
+
+  return filtered.sort(
     (a, b) =>
       a.index - b.index,
   );
