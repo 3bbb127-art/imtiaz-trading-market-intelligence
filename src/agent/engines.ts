@@ -2011,8 +2011,8 @@ function extractPricePointsFromResearch(
         );
 
       /**
-       * Ignore numeric amounts that are clearly describing a change
-       * rather than a market price.
+       * Ignore numeric amounts that clearly describe
+       * a change rather than a market price.
        */
       const changeAmount =
         /\b(?:fell|fallen|dropped|declined|decreased|reduced|down)\b[^.]{0,140}\bby\b[^.]{0,100}(?:usd|eur|gbp|rub|kzt|afn|pkr|inr|cny|vnd|thb|try|irr|aed|jpy|cad|aud|chf|sar|qar|\$|€|£)?\s*[0-9][\d,]*(?:\.\d+)?\s*$/i.test(
@@ -2023,11 +2023,196 @@ function extractPricePointsFromResearch(
         continue;
       }
 
-      const location =
-        locationNearPrice(
-          text,
-          match.index,
+      /**
+       * IMPORTANT:
+       * Price attribution must be local to the sentence containing
+       * the price. A location from an earlier sentence must never
+       * inherit a later price.
+       */
+      const priceStart =
+        match.index;
+
+      const previousBoundary =
+        Math.max(
+          text.lastIndexOf(
+            '.',
+            priceStart - 1,
+          ),
+          text.lastIndexOf(
+            '!',
+            priceStart - 1,
+          ),
+          text.lastIndexOf(
+            '?',
+            priceStart - 1,
+          ),
+          text.lastIndexOf(
+            '\n',
+            priceStart - 1,
+          ),
         );
+
+      const nextPeriod =
+        text.indexOf(
+          '.',
+          priceStart +
+            match[0].length,
+        );
+
+      const nextExclamation =
+        text.indexOf(
+          '!',
+          priceStart +
+            match[0].length,
+        );
+
+      const nextQuestion =
+        text.indexOf(
+          '?',
+          priceStart +
+            match[0].length,
+        );
+
+      const nextNewline =
+        text.indexOf(
+          '\n',
+          priceStart +
+            match[0].length,
+        );
+
+      const nextBoundaryCandidates =
+        [
+          nextPeriod,
+          nextExclamation,
+          nextQuestion,
+          nextNewline,
+        ].filter(
+          (index) =>
+            index >= 0,
+        );
+
+      const nextBoundary =
+        nextBoundaryCandidates.length >
+        0
+          ? Math.min(
+              ...nextBoundaryCandidates,
+            )
+          : text.length;
+
+      const sentenceStart =
+        previousBoundary >= 0
+          ? previousBoundary + 1
+          : 0;
+
+      const sentenceEnd =
+        nextBoundary;
+
+      const sentenceText =
+        text.slice(
+          sentenceStart,
+          sentenceEnd,
+        );
+
+      /**
+       * Find locations only inside the same sentence.
+       */
+      const sentenceLocations =
+        locationsInText(
+          sentenceText,
+        );
+
+      /**
+       * Convert sentence-local indexes back to indexes
+       * in the original research text.
+       */
+      const localLocations =
+        sentenceLocations.map(
+          (location) => ({
+            ...location,
+            index:
+              location.index +
+              sentenceStart,
+          }),
+        );
+
+      /**
+       * Only locations BEFORE the price can attribute that price.
+       */
+      const precedingLocations =
+        localLocations
+          .filter(
+            (location) =>
+              location.index <
+              priceStart,
+          )
+          .sort(
+            (a, b) =>
+              priceStart -
+              a.index -
+              (
+                priceStart -
+                b.index
+              ),
+          );
+
+      let location:
+        ResearchLocation | null =
+        null;
+
+      if (
+        precedingLocations.length ===
+        1
+      ) {
+        /**
+         * Exactly one location in the sentence:
+         * safe local attribution.
+         */
+        location =
+          precedingLocations[0];
+      } else if (
+        precedingLocations.length >
+        1
+      ) {
+        /**
+         * Multiple locations occur before the same price.
+         *
+         * Do NOT blindly choose the nearest one.
+         * First check whether the price is explicitly connected
+         * to one location.
+         */
+        const directLocationCandidates =
+          precedingLocations.filter(
+            (candidate) => {
+              const between =
+                text.slice(
+                  candidate.index +
+                    candidate.name.length,
+                  priceStart,
+                );
+
+              return (
+                /^[\s'’,:;–—-]*(?:(?:stood|was|were|is|are)\s+)?(?:at|quoted\s+at|priced\s+at|traded\s+at|price\s+was|prices?\s+were|prices?\s+at)[\s'’,:;–—-]*$/i.test(
+                  between,
+                )
+              );
+            },
+          );
+
+        if (
+          directLocationCandidates.length ===
+          1
+        ) {
+          location =
+            directLocationCandidates[0];
+        } else {
+          /**
+           * Ambiguous multi-location sentence:
+           * leave the price global rather than assigning
+           * it to the wrong market.
+           */
+          location = null;
+        }
+      }
 
       /**
        * Comparison safety:
@@ -2059,7 +2244,6 @@ function extractPricePointsFromResearch(
         }`,
       );
     }
-
     // -------------------------------------------------------------------------
     // B. Structured country → price table extraction
     //
