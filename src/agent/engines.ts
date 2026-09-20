@@ -1550,7 +1550,7 @@ function locationsInText(
       a.index - b.index,
   );
 }
- 
+
 function priceIsAttributableToComparisonMarket(
   location: ResearchLocation | null,
   text: string,
@@ -1564,8 +1564,7 @@ function priceIsAttributableToComparisonMarket(
   }
 
   /**
-   * Strongest signal:
-   * the directly associated location is one of the requested markets.
+   * A directly attributed location is the strongest signal.
    */
   if (
     location &&
@@ -1581,16 +1580,15 @@ function priceIsAttributableToComparisonMarket(
   }
 
   /**
-   * Conservative local attribution.
-   *
-   * Do not inspect a large paragraph. A price can only inherit
-   * comparison-market attribution from a narrow sentence-level window.
+   * Use only a narrow window around the price.
+   * This prevents a market mentioned earlier in a paragraph
+   * from incorrectly owning a later price.
    */
   const localWindow =
     text.slice(
       Math.max(
         0,
-        priceIndex - 70,
+        priceIndex - 100,
       ),
       Math.min(
         text.length,
@@ -1598,14 +1596,6 @@ function priceIsAttributableToComparisonMarket(
       ),
     );
 
-  /**
-   * Reject local text that mentions multiple comparison markets.
-   * Example:
-   * "India ... Pakistan ... $353"
-   *
-   * Without a direct location immediately attached to the price,
-   * attribution is ambiguous and must not be invented.
-   */
   const matchedMarkets =
     markets.filter(
       (market) =>
@@ -1615,16 +1605,18 @@ function priceIsAttributableToComparisonMarket(
         ),
     );
 
+  /**
+   * Exactly one comparison market in the local context
+   * can be accepted when no direct location was extracted.
+   */
   if (
-    matchedMarkets.length !==
-    1
+    matchedMarkets.length === 1
   ) {
-    return false;
+    return true;
   }
 
-  return true;
+  return false;
 }
-
 // -----------------------------------------------------------------------------
 // Price extraction
 // -----------------------------------------------------------------------------
