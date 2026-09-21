@@ -482,21 +482,64 @@ function scopeResearchResults(
   const results =
     input.researchResults;
 
+  const commodityTerm =
+    normalizeText(
+      input.commodity,
+    );
+
+  const matchesCommodity =
+    (
+      result: ResearchProviderResult,
+    ): boolean => {
+      if (!commodityTerm) {
+        return true;
+      }
+
+      const text =
+        normalizeText(
+          `${result.title} ${result.snippet}`,
+        );
+
+      if (!text) {
+        return false;
+      }
+
+      const pattern =
+        new RegExp(
+          `\\b${escapeRegex(
+            commodityTerm,
+          )}\\b`,
+          'i',
+        );
+
+      return pattern.test(text);
+    };
+
   if (
     isComparisonWorkflow(input)
   ) {
     const markets =
       comparisonMarkets(input);
 
-    return results.filter(
-      (result) =>
-        markets.some((market) =>
-          researchResultMatchesMarket(
-            result,
-            market,
+    const marketScoped =
+      results.filter(
+        (result) =>
+          markets.some((market) =>
+            researchResultMatchesMarket(
+              result,
+              market,
+            ),
           ),
-        ),
-    );
+      );
+
+    const commodityScoped =
+      marketScoped.filter(
+        matchesCommodity,
+      );
+
+    return commodityScoped.length > 0
+      ? commodityScoped
+      : marketScoped;
   }
 
   const scopeTerms = [
@@ -508,7 +551,8 @@ function scopeResearchResults(
     .filter(Boolean);
 
   if (
-    scopeTerms.length === 0
+    scopeTerms.length === 0 &&
+    !commodityTerm
   ) {
     return results;
   }
@@ -521,16 +565,51 @@ function scopeResearchResults(
             `${result.title} ${result.snippet}`,
           );
 
-        return scopeTerms.some(
-          (term) =>
+        const matchesLocation =
+          scopeTerms.length === 0 ||
+          scopeTerms.some((term) =>
             text.includes(term),
+          );
+
+        return (
+          matchesLocation &&
+          matchesCommodity(result)
         );
       },
     );
 
-  return scoped.length > 0
-    ? scoped
-    : results;
+  if (
+    scoped.length > 0
+  ) {
+    return scoped;
+  }
+
+  if (
+    scopeTerms.length > 0
+  ) {
+    const locationScoped =
+      results.filter(
+        (result) => {
+          const text =
+            normalizeText(
+              `${result.title} ${result.snippet}`,
+            );
+
+          return scopeTerms.some(
+            (term) =>
+              text.includes(term),
+          );
+        },
+      );
+
+    if (
+      locationScoped.length > 0
+    ) {
+      return locationScoped;
+    }
+  }
+
+  return results;
 }
 // -----------------------------------------------------------------------------
 // Research units / FX
