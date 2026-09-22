@@ -3,7 +3,16 @@
 // preserving raw source evidence, source publication dates, freshness, and confidence.
 
 import type { Freshness, PricePoint } from '../lib/types';
-import { freshnessOf } from '../lib/format';
+
+export function freshnessOf(dateStr: string | null | undefined): Freshness {
+  if (!dateStr) return 'UNKNOWN';
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return 'UNKNOWN';
+  const days = (Date.now() - d.getTime()) / 86400000;
+  if (days <= 7) return 'CURRENT';
+  if (days <= 30) return 'RECENT';
+  return 'STALE';
+}
 
 export interface UnitNormalizationResult {
   canonicalUnit: string | null;
@@ -136,16 +145,26 @@ export function normalizeUnit(
 
   const lower = trimmed.toLowerCase().replace(/[^a-z0-9]/g, '');
 
-  if (lower === 'mt' || lower === 'ton' || lower === 'tonne' || lower === 'metricton' || lower === 'mton') {
+  if (lower === 'mt' || lower === 'tonne' || lower === 'metricton' || lower === 'mton') {
     return { canonicalUnit: 'MT', mtFactor: 1, raw: trimmed };
+  }
+
+  if (lower === 'ton') {
+    // Ambiguous ton (could be short ton or long ton). Keep canonical unit as 'ton' and factor null.
+    return { canonicalUnit: 'ton', mtFactor: null, raw: trimmed };
   }
 
   if (lower === 'kg' || lower === 'kilo' || lower === 'kilogram') {
     return { canonicalUnit: 'kg', mtFactor: 1000, raw: trimmed };
   }
 
-  if (lower === 'bag' || lower === '50kg' || lower === '50kgbag' || lower === 'bag50kg') {
+  if (lower === '50kg' || lower === '50kgbag' || lower === 'bag50kg') {
     return { canonicalUnit: 'bag (50kg)', mtFactor: 20, raw: trimmed };
+  }
+
+  if (lower === 'bag') {
+    // Unspecified bag weight. Do not guess bag weight. Keep canonical unit as 'bag' and factor null.
+    return { canonicalUnit: 'bag', mtFactor: null, raw: trimmed };
   }
 
   if (lower === 'lb' || lower === 'lbs' || lower === 'pound' || lower === 'pounds') {

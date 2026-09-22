@@ -242,6 +242,24 @@ const fallbackObsPoint: PricePoint = {
 const normalizedFallbackObs = normalizePricePoint(fallbackObsPoint);
 assert('When published_date is missing, freshness falls back to observation_date -> CURRENT', normalizedFallbackObs.freshness === 'CURRENT', `got "${normalizedFallbackObs.freshness}"`);
 
+console.log('\n=== TEST 8: Unspecified Bag Weight & Ambiguous Ton Rules ===');
+
+const unspecifiedBagNorm = normalizeUnit('bag');
+assert('Unspecified bag unit -> canonical "bag"', unspecifiedBagNorm.canonicalUnit === 'bag', `got "${unspecifiedBagNorm.canonicalUnit}"`);
+assert('Unspecified bag mtFactor is null (never guess bag weight)', unspecifiedBagNorm.mtFactor === null, `got ${unspecifiedBagNorm.mtFactor}`);
+
+const explicitBagNorm = normalizeUnit('50kg bag');
+assert('Explicit 50kg bag -> canonical "bag (50kg)"', explicitBagNorm.canonicalUnit === 'bag (50kg)', `got "${explicitBagNorm.canonicalUnit}"`);
+assert('Explicit 50kg bag mtFactor is 20', explicitBagNorm.mtFactor === 20, `got ${explicitBagNorm.mtFactor}`);
+
+const ambiguousTonNorm = normalizeUnit('ton');
+assert('Ambiguous ton unit -> canonical "ton"', ambiguousTonNorm.canonicalUnit === 'ton', `got "${ambiguousTonNorm.canonicalUnit}"`);
+assert('Ambiguous ton mtFactor is null (never guess ton type)', ambiguousTonNorm.mtFactor === null, `got ${ambiguousTonNorm.mtFactor}`);
+
+const explicitMtNorm = normalizeUnit('MT');
+assert('Explicit MT unit -> canonical "MT"', explicitMtNorm.canonicalUnit === 'MT', `got "${explicitMtNorm.canonicalUnit}"`);
+assert('Explicit MT mtFactor is 1', explicitMtNorm.mtFactor === 1, `got ${explicitMtNorm.mtFactor}`);
+
 console.log('\n=== ALL NORMALIZATION TESTS SUMMARY ===');
 if (process.exitCode) {
   console.log('NORMALIZATION TEST SUITE FAILED — see details above.');
