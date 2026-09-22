@@ -1769,11 +1769,6 @@ function extractPricePointsFromResearch(
   const markets =
     comparisonMarkets(input);
 
-  const today =
-    new Date()
-      .toISOString()
-      .slice(0, 10);
-
   const symbolCurrency: Record<string, string> = {
     '$': 'USD',
     '€': 'EUR',
@@ -1833,10 +1828,12 @@ function extractPricePointsFromResearch(
         'MEDIUM',
 
       freshness:
-        'CURRENT',
+        freshnessOf(
+          result.published_date,
+        ),
 
       observation_date:
-        today,
+        result.published_date ?? undefined,
 
       note,
     });
@@ -3266,7 +3263,9 @@ export function demandEngine(
           : 'LOW',
 
       freshness:
-        'CURRENT',
+        freshnessOf(
+          result.published_date,
+        ),
 
       evidence_type:
         'INFERRED',
@@ -4628,7 +4627,12 @@ export function sourceEngine(
         'MEDIUM',
 
       freshness:
-        'CURRENT',
+        freshnessOf(
+          result.published_date,
+        ),
+
+      observation_date:
+        result.published_date ?? undefined,
     });
   }
 

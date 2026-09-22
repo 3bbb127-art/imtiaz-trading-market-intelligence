@@ -408,6 +408,7 @@ export interface ResearchProviderResult {
   data_status?: DataStatus;
   confidence?: Confidence;
   freshness?: Freshness;
+  published_date?: string | null;
 }
 
 export type ProviderStatus = 'OK' | 'ERROR' | 'NO_PROVIDER';

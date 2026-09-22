@@ -51,13 +51,13 @@ export function normalizeToUsdPerMt(price: number | null, currency: string | nul
   return perKg * 1000;
 }
 
-export function freshnessOf(dateStr: string | undefined): Freshness {
+export function freshnessOf(dateStr: string | null | undefined): Freshness {
   if (!dateStr) return 'UNKNOWN';
   const d = new Date(dateStr);
   if (Number.isNaN(d.getTime())) return 'UNKNOWN';
   const days = (Date.now() - d.getTime()) / 86400000;
-  if (days <= 2) return 'CURRENT';
-  if (days <= 14) return 'RECENT';
+  if (days <= 7) return 'CURRENT';
+  if (days <= 30) return 'RECENT';
   return 'STALE';
 }
 
