@@ -2,6 +2,12 @@
 // freshness classification, confidence helpers.
 
 import type { Confidence, DataStatus, Freshness, PricePoint } from './types';
+export {
+  normalizeCommodity,
+  normalizeUnit,
+  normalizeCurrency,
+  normalizePricePoint,
+} from '../agent/normalization';
 
 const USD_PER_UNIT: Record<string, number> = {
   USD: 1,

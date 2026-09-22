@@ -7,10 +7,10 @@ Global Commodity & International Trade Market Intelligence AI
 3bbb127-art/imtiaz-trading-market-intelligence
 
 ## Current Phase
-Source Verification / Publication Date & Time Relevance
+Normalization Layer
 
 ## Current Task
-Completed Source Verification → Publication Date / Time Relevance flow.
+Completed Global-First Normalization layer.
 
 ## Product Direction
 Global commodity and international trade market intelligence.
@@ -84,7 +84,12 @@ These are historical claims only and must be re-verified before current PASS sta
 - `ResearchProviderResult` propagates `published_date?: string | null` from provider payloads (`supabase/functions/market-intel/index.ts`).
 - Centralized `freshnessOf` logic: missing/invalid -> `UNKNOWN`, <= 7 days -> `CURRENT`, <= 30 days -> `RECENT`, > 30 days -> `STALE`.
 - Engine consumers (`extractPricePointsFromResearch`, `demandEngine`, `sourceEngine`) compute freshness from `published_date` and eliminate fake "today" observation dates.
-- Verified test suite (`src/agent/__test__/rice-demo.ts`, `src/agent/__test__/freshness.test.ts`), `npm run typecheck`, `npm run lint`, and `npm run build` all passing.
+- Normalization Layer (`src/agent/normalization.ts`):
+  - Standardizes commodity names/aliases (e.g. Maize -> Corn, Durum Wheat -> Wheat, Paddy Rice -> Rice) while title-casing unknown commodities without inventing missing values.
+  - Standardizes units (MT, kg, 50kg bag, lbs, quintal, litres) with scaling factors to USD/MT. Unparseable units preserve raw name and set factor to null.
+  - Standardizes currency symbols ($, €, £, ₹, etc.) and codes (USD, EUR, GBP, AFN, INR, PKR, RUB, KZT, etc.).
+  - `normalizePricePoint` converts raw prices to USD/MT normalized values while preserving all raw evidence (raw price, currency, unit, location, data_status, confidence, freshness, publication/observation dates).
+- Verified test suite (`src/agent/__test__/rice-demo.ts`, `src/agent/__test__/freshness.test.ts`, `src/agent/__test__/normalization.test.ts`), `npm run typecheck`, `npm run lint`, and `npm run build` all passing.
 
 ## Known Bugs / Risks
 - Global Market Scope may lose or display incorrect fields.
