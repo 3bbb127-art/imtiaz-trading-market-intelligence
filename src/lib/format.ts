@@ -2,6 +2,13 @@
 // freshness classification, confidence helpers.
 
 import type { Confidence, DataStatus, Freshness, PricePoint } from './types';
+export {
+  normalizeCommodity,
+  normalizeUnit,
+  normalizeCurrency,
+  normalizePricePoint,
+  freshnessOf,
+} from '../agent/normalization';
 
 const USD_PER_UNIT: Record<string, number> = {
   USD: 1,
@@ -51,15 +58,6 @@ export function normalizeToUsdPerMt(price: number | null, currency: string | nul
   return perKg * 1000;
 }
 
-export function freshnessOf(dateStr: string | null | undefined): Freshness {
-  if (!dateStr) return 'UNKNOWN';
-  const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return 'UNKNOWN';
-  const days = (Date.now() - d.getTime()) / 86400000;
-  if (days <= 7) return 'CURRENT';
-  if (days <= 30) return 'RECENT';
-  return 'STALE';
-}
 
 export function formatPrice(p: PricePoint): string {
   if (p.price == null || p.currency == null || p.unit == null) {
