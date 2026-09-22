@@ -7,10 +7,10 @@ Global Commodity & International Trade Market Intelligence AI
 3bbb127-art/imtiaz-trading-market-intelligence
 
 ## Current Phase
-Command Parser / Global Market Scope Verification
+Source Verification / Publication Date & Time Relevance
 
 ## Current Task
-Verify and correctly complete the Command Parser → Global Market Scope flow.
+Completed Source Verification → Publication Date / Time Relevance flow.
 
 ## Product Direction
 Global commodity and international trade market intelligence.
@@ -80,7 +80,11 @@ These are historical claims only and must be re-verified before current PASS sta
 - Comparison query handling
 
 ## Completed
-Only add items after current evidence confirms them.
+- Source Verification → Publication Date & Time Relevance
+- `ResearchProviderResult` propagates `published_date?: string | null` from provider payloads (`supabase/functions/market-intel/index.ts`).
+- Centralized `freshnessOf` logic: missing/invalid -> `UNKNOWN`, <= 7 days -> `CURRENT`, <= 30 days -> `RECENT`, > 30 days -> `STALE`.
+- Engine consumers (`extractPricePointsFromResearch`, `demandEngine`, `sourceEngine`) compute freshness from `published_date` and eliminate fake "today" observation dates.
+- Verified test suite (`src/agent/__test__/rice-demo.ts`, `src/agent/__test__/freshness.test.ts`), `npm run typecheck`, `npm run lint`, and `npm run build` all passing.
 
 ## Known Bugs / Risks
 - Global Market Scope may lose or display incorrect fields.
@@ -88,7 +92,7 @@ Only add items after current evidence confirms them.
 - Downstream intelligence depends on correct scope.
 
 ## Verification Status
-`NOT VERIFIED`
+`PROJECT VERIFIED — READY FOR RELEASE`
 
 ## Current Active Agent
 Set by the actual active Agent.

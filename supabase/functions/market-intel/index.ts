@@ -49,6 +49,7 @@ interface ResearchResult {
   url: string;
   snippet: string;
   source_type: string;
+  published_date?: string | null;
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -196,6 +197,7 @@ async function handleResearch(req: Request): Promise<Response> {
       url: String(r.url ?? ""),
       snippet: String(r.content ?? ""),
       source_type: "web",
+      published_date: typeof r.published_date === "string" ? r.published_date : typeof r.publishedDate === "string" ? r.publishedDate : typeof r.date === "string" ? r.date : null,
     }));
     return jsonResponse({
       query,

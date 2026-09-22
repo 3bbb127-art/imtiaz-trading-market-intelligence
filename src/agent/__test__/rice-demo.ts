@@ -85,6 +85,8 @@ console.log('\n=== STEP 2: Simulate pipeline (no stored data, FX 502) ===');
 const marketRows: RawMarketRow[] = []; // No stored market data for this demo
 
 // Simulate web research results — India rice prices, global rice market, Afghanistan food security
+const todayIso = new Date().toISOString().slice(0, 10);
+
 const researchResults: ResearchProviderResult[] = [
   {
     title: 'India rice export prices stable at USD 520/ton',
@@ -93,7 +95,7 @@ const researchResults: ResearchProviderResult[] = [
     source_type: 'news',
     data_status: 'REPORTED',
     confidence: 'MEDIUM',
-    freshness: 'CURRENT',
+    published_date: todayIso,
   },
   {
     title: 'Afghanistan food security update: rice demand strong',
@@ -102,7 +104,7 @@ const researchResults: ResearchProviderResult[] = [
     source_type: 'news',
     data_status: 'REPORTED',
     confidence: 'MEDIUM',
-    freshness: 'CURRENT',
+    published_date: todayIso,
   },
   {
     title: 'Global rice market outlook 2026',
@@ -111,7 +113,7 @@ const researchResults: ResearchProviderResult[] = [
     source_type: 'news',
     data_status: 'REPORTED',
     confidence: 'MEDIUM',
-    freshness: 'CURRENT',
+    published_date: todayIso,
   },
   {
     title: 'Mazar-e-Sharif market report',
@@ -120,7 +122,7 @@ const researchResults: ResearchProviderResult[] = [
     source_type: 'news',
     data_status: 'REPORTED',
     confidence: 'MEDIUM',
-    freshness: 'CURRENT',
+    published_date: todayIso,
   },
 ];
 
