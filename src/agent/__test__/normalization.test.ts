@@ -7,7 +7,7 @@ import {
   normalizeCurrency,
   normalizePricePoint,
 } from '../normalization';
-import type { PricePoint } from '../../lib/types';
+import type { Confidence, DataStatus, PricePoint } from '../../lib/types';
 
 function assert(name: string, condition: boolean, details: string): void {
   console.log(`${condition ? 'PASS' : 'FAIL'} — ${name}: ${details}`);
@@ -57,6 +57,10 @@ assert('quintal -> quintal (100kg) (factor 10)', qtlNorm.canonicalUnit === 'quin
 const unknownUnitNorm = normalizeUnit('custom-crate');
 assert('Unknown unit preserves raw unit name', unknownUnitNorm.canonicalUnit === 'custom-crate', `unit=${unknownUnitNorm.canonicalUnit}`);
 assert('Unknown unit returns null factor (never guess)', unknownUnitNorm.mtFactor === null, `factor=${unknownUnitNorm.mtFactor}`);
+
+const litreNorm = normalizeUnit('litre');
+assert('Litre unit canonical is litre', litreNorm.canonicalUnit === 'litre', `unit=${litreNorm.canonicalUnit}`);
+assert('Litre unit mtFactor is null without commodity density (never guess)', litreNorm.mtFactor === null, `factor=${litreNorm.mtFactor}`);
 
 
 console.log('\n=== TEST 3: Currency Symbol & Code Normalization ===');
@@ -132,6 +136,48 @@ const normalizedIncomplete = normalizePricePoint(incompletePoint);
 assert('Missing price remains null (no invention)', normalizedIncomplete.normalized_price_usd === null, `got ${normalizedIncomplete.normalized_price_usd}`);
 assert('Missing currency raw preserved', normalizedIncomplete.raw_currency === null, `got ${normalizedIncomplete.raw_currency}`);
 assert('Unknown freshness remains UNKNOWN', normalizedIncomplete.freshness === 'UNKNOWN', `got "${normalizedIncomplete.freshness}"`);
+
+console.log('\n=== TEST 6: Data Integrity & Metadata Non-Invention Rules ===');
+
+const litrePricePoint: PricePoint = {
+  label: 'Vegetable Oil Price in Rotterdam',
+  location: 'Rotterdam',
+  price: 1.2,
+  currency: 'EUR',
+  unit: 'litre',
+  normalized_price_usd: null,
+  normalized_unit: 'USD/MT',
+  source: 'https://example.com/oil',
+  data_status: 'REPORTED',
+  confidence: 'HIGH',
+  freshness: 'CURRENT',
+};
+
+const fxRatesEur = [{ base_currency: 'EUR', quote_currency: 'USD', rate: 1.08 }];
+const normalizedLitre = normalizePricePoint(litrePricePoint, fxRatesEur);
+
+assert('Litre price point retains raw price 1.2', normalizedLitre.raw_price === 1.2, `got ${normalizedLitre.raw_price}`);
+assert('Litre price point retains raw unit litre', normalizedLitre.raw_unit === 'litre', `got "${normalizedLitre.raw_unit}"`);
+assert('Litre price point normalized_price_usd remains null (no MT factor guessed without density)', normalizedLitre.normalized_price_usd === null, `got ${normalizedLitre.normalized_price_usd}`);
+
+const missingMetadataPoint: PricePoint = {
+  label: 'Unverified Spot Price',
+  location: 'Global',
+  price: 500,
+  currency: 'USD',
+  unit: 'MT',
+  normalized_price_usd: 500,
+  normalized_unit: 'USD/MT',
+  source: 'https://example.com/unverified',
+  data_status: undefined as unknown as DataStatus,
+  confidence: undefined as unknown as Confidence,
+  freshness: 'UNKNOWN',
+};
+
+const normalizedMissingMetadata = normalizePricePoint(missingMetadataPoint);
+
+assert('data_status is NOT invented when raw is missing', normalizedMissingMetadata.data_status === undefined, `got ${normalizedMissingMetadata.data_status}`);
+assert('confidence is NOT invented when raw is missing', normalizedMissingMetadata.confidence === undefined, `got ${normalizedMissingMetadata.confidence}`);
 
 console.log('\n=== ALL NORMALIZATION TESTS SUMMARY ===');
 if (process.exitCode) {

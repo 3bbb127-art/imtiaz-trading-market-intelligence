@@ -157,7 +157,9 @@ export function normalizeUnit(
   }
 
   if (lower === 'litre' || lower === 'liter' || lower === 'l') {
-    return { canonicalUnit: 'litre', mtFactor: 1000, raw: trimmed };
+    // Litres require commodity-specific density to convert to metric tons.
+    // Without density, keep mtFactor null to avoid guessing.
+    return { canonicalUnit: 'litre', mtFactor: null, raw: trimmed };
   }
 
   // Unknown unit: retain raw unit, factor remains null so no prices are guessed
@@ -261,8 +263,8 @@ export function normalizePricePoint(
     normalized_price_usd: normalizedUsdPerMt,
     normalized_unit: 'USD/MT',
 
-    data_status: p.data_status ?? 'REPORTED',
-    confidence: p.confidence ?? 'MEDIUM',
+    data_status: p.data_status,
+    confidence: p.confidence,
     freshness,
     observation_date: p.observation_date,
   };
