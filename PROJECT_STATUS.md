@@ -7,10 +7,10 @@ Global Commodity & International Trade Market Intelligence AI
 3bbb127-art/imtiaz-trading-market-intelligence
 
 ## Current Phase
-Normalization Layer
+Stage 6 — Global Supply/Demand Calibration
 
 ## Current Task
-Completed Global-First Normalization layer.
+Completed Global Supply/Demand Calibration layer.
 
 ## Product Direction
 Global commodity and international trade market intelligence.
@@ -90,6 +90,12 @@ These are historical claims only and must be re-verified before current PASS sta
   - Standardizes currency symbols ($, €, £, ₹, etc.) and codes (USD, EUR, GBP, AFN, INR, PKR, RUB, KZT, etc.).
   - `normalizePricePoint` converts raw prices to USD/MT normalized values while preserving all raw evidence (raw price, currency, unit, location, data_status, confidence, freshness, publication/observation dates).
 - Verified test suite (`src/agent/__test__/rice-demo.ts`, `src/agent/__test__/freshness.test.ts`, `src/agent/__test__/normalization.test.ts`), `npm run typecheck`, `npm run lint`, and `npm run build` all passing.
+- Global Supply/Demand Calibration (`src/agent/engines.ts`):
+  - Weighted signal aggregation model: `computeSignalWeight(confidence, freshness, dataStatus)` scores evidence objectively based on source confidence (HIGH: 1.0, MEDIUM: 0.7, LOW: 0.4), freshness (CURRENT: 1.0, RECENT: 0.6, STALE: 0.2, UNKNOWN: 0.3), and data status (VERIFIED: 1.0, REPORTED: 0.8, ESTIMATED: 0.5).
+  - Directional signal aggregation & competing evidence conflict detection in `resolveSignals()` for both Supply (High/Tight/Critical/Normal) and Demand (Surging/Strong/Weak/Normal).
+  - Fully transparent evidence traces showing source URL, confidence, freshness, and signal weight.
+  - Market comparison supply/demand evaluation per market without evidence cross-contamination.
+  - Comprehensive unit test suite `src/agent/__test__/supplyDemand.test.ts` covering 14 calibration scenarios.
 
 ## Known Bugs / Risks
 - Global Market Scope may lose or display incorrect fields.

@@ -1115,6 +1115,7 @@ function mapSupply(
   }
 
   if (
+    value === 'critical' ||
     /\b(critical supply|severe supply shortage|acute supply shortage|supply crisis|critical shortage|severe shortage|acute shortage|famine|starvation)\b/i.test(
       value,
     )
@@ -1123,6 +1124,7 @@ function mapSupply(
   }
 
   if (
+    value === 'tight' ||
     /\b(shortage|supply shortage|tight supply|constrained supply|supply disruption|depleted stocks?|depleted supply|scarce supply|insufficient supply|supply shortfall|supply constraint|constrained availability|limited availability|crop failure|failed harvest|poor harvest|reduced harvest|lower production|declining production|production decline|export ban|export restriction|supply restriction)\b/i.test(
       value,
     )
@@ -1131,6 +1133,7 @@ function mapSupply(
   }
 
   if (
+    value === 'high' ||
     /\b(abundant supply|abundant supplies|surplus supply|supply surplus|oversupply|excess supply|ample supply|ample supplies|high supply|strong supply availability|bumper harvest|record production|record harvest|record crop|high production|excess production|overproduction|increased production|rising production|higher production|good harvest|strong harvest|large stocks?|high stocks?|rising stocks?|ample stocks?)\b/i.test(
       value,
     )
@@ -1139,6 +1142,7 @@ function mapSupply(
   }
 
   if (
+    value === 'normal' ||
     /\b(adequate supply|adequate supplies|sufficient supply|sufficient supplies|normal supply|stable supply|steady supply|balanced supply|supply remains stable|supply is stable|supply is normal|supply is adequate|supply is sufficient|normal availability|stable availability|steady availability|adequate availability|sufficient availability|available stocks?|stocks? (?:normal|stable|adequate|sufficient))\b/i.test(
       value,
     )
@@ -1162,6 +1166,7 @@ function mapDemand(
   }
 
   if (
+    value === 'surging' ||
     /\b(surging demand|surge in demand|demand surge|soaring demand|explosive demand|sky-high demand|exceptionally strong demand|sharp increase in demand|spike in demand|demand is surging|demand is soaring|demand surged|demand spiked)\b/i.test(
       value,
     )
@@ -1170,6 +1175,7 @@ function mapDemand(
   }
 
   if (
+    value === 'strong' ||
     /\b(strong demand|robust demand|high demand|rising demand|increasing demand|growing demand|increased demand|demand is strong|demand is robust|demand remains strong|demand increased|demand rising|demand grew|demand growth|rising consumption|increasing consumption|growing consumption|increased consumption|higher consumption|strong buying|strong purchases|increased buying activity|stronger buying activity|increased import demand|rising import demand|strong import demand|increased household demand|strong household demand|rising household demand|increased industrial demand|strong industrial demand|rising industrial demand)\b/i.test(
       value,
     )
@@ -1178,6 +1184,7 @@ function mapDemand(
   }
 
   if (
+    value === 'weak' ||
     /\b(weak demand|low demand|declining demand|falling demand|dropping demand|reduced demand|weaker demand|sluggish demand|soft demand|demand is weak|demand is low|demand remains weak|demand declined|demand decreased|demand fell|demand dropped|lower demand|falling consumption|declining consumption|reduced consumption|lower consumption|weak buying|weak purchases|reduced buying activity|weaker buying activity|reduced import demand|falling import demand)\b/i.test(
       value,
     )
@@ -1186,6 +1193,7 @@ function mapDemand(
   }
 
   if (
+    value === 'normal' ||
     /\b(normal demand|stable demand|steady demand|moderate demand|balanced demand|demand is normal|demand is stable|demand is steady|demand remains stable|demand remains steady|demand stayed stable|demand stayed steady|stable consumption|steady consumption|moderate consumption)\b/i.test(
       value,
     )
@@ -1301,12 +1309,26 @@ function classifyDemandFromText(
   return null;
 }
 interface ResearchSignal {
-  level:
-    | SupplyLevel
-    | DemandLevel;
+  level: SupplyLevel | DemandLevel;
   source: string;
   url: string;
   confidence: Confidence;
+  freshness: Freshness;
+  data_status: DataStatus;
+  published_date?: string | null;
+  observation_date?: string;
+  weight: number;
+}
+
+function computeSignalWeight(
+  confidence: Confidence,
+  freshness: Freshness,
+  dataStatus: DataStatus,
+): number {
+  const confMult = confidence === 'HIGH' ? 1.0 : confidence === 'MEDIUM' ? 0.7 : 0.4;
+  const freshMult = freshness === 'CURRENT' ? 1.0 : freshness === 'RECENT' ? 0.6 : freshness === 'STALE' ? 0.2 : 0.3;
+  const statusMult = dataStatus === 'VERIFIED' ? 1.0 : dataStatus === 'REPORTED' ? 0.8 : dataStatus === 'ESTIMATED' ? 0.5 : 0.4;
+  return Number((confMult * freshMult * statusMult).toFixed(2));
 }
 
 function extractSupplyDemandFromResearch(
@@ -1315,58 +1337,46 @@ function extractSupplyDemandFromResearch(
   supplySignals: ResearchSignal[];
   demandSignals: ResearchSignal[];
 } {
-  const supplySignals:
-    ResearchSignal[] = [];
+  const supplySignals: ResearchSignal[] = [];
+  const demandSignals: ResearchSignal[] = [];
 
-  const demandSignals:
-    ResearchSignal[] = [];
+  const research = scopeResearchResults(input);
 
-  const research =
-    scopeResearchResults(input);
+  for (const result of research) {
+    const text = `${result.title} ${result.snippet}`;
+    const freshness = freshnessOf(result.published_date);
 
-  for (
-    const result of research
-  ) {
-    const text =
-      `${result.title} ${result.snippet}`;
-
-    const supply =
-      classifySupplyFromText(
-        text,
-      );
-
+    const supply = classifySupplyFromText(text);
     if (supply) {
+      const confidence: Confidence = result.confidence ?? (supply === 'Normal' ? 'MEDIUM' : 'LOW');
+      const dataStatus: DataStatus = result.data_status ?? 'REPORTED';
+      const weight = computeSignalWeight(confidence, freshness, dataStatus);
       supplySignals.push({
         level: supply,
-        source:
-          result.title ||
-          result.url,
-        url:
-          result.url,
-        confidence:
-          supply === 'Normal'
-            ? 'MEDIUM'
-            : 'LOW',
+        source: result.title || result.url,
+        url: result.url,
+        confidence,
+        freshness,
+        data_status: dataStatus,
+        published_date: result.published_date ?? null,
+        weight,
       });
     }
 
-    const demand =
-      classifyDemandFromText(
-        text,
-      );
-
+    const demand = classifyDemandFromText(text);
     if (demand) {
+      const confidence: Confidence = result.confidence ?? (demand === 'Normal' ? 'MEDIUM' : 'LOW');
+      const dataStatus: DataStatus = result.data_status ?? 'REPORTED';
+      const weight = computeSignalWeight(confidence, freshness, dataStatus);
       demandSignals.push({
         level: demand,
-        source:
-          result.title ||
-          result.url,
-        url:
-          result.url,
-        confidence:
-          demand === 'Normal'
-            ? 'MEDIUM'
-            : 'LOW',
+        source: result.title || result.url,
+        url: result.url,
+        confidence,
+        freshness,
+        data_status: dataStatus,
+        published_date: result.published_date ?? null,
+        weight,
       });
     }
   }
@@ -1379,19 +1389,13 @@ function extractSupplyDemandFromResearch(
 
 function resolveSignals(
   signals: ResearchSignal[],
-  kind:
-    | 'supply'
-    | 'demand',
+  kind: 'supply' | 'demand',
 ): {
-  level:
-    | SupplyLevel
-    | DemandLevel;
+  level: SupplyLevel | DemandLevel;
   evidence: string[];
   conflict: boolean;
 } {
-  if (
-    signals.length === 0
-  ) {
+  if (signals.length === 0) {
     return {
       level: 'Unknown',
       evidence: [],
@@ -1399,150 +1403,102 @@ function resolveSignals(
     };
   }
 
-  const uniqueLevels = [
-    ...new Set(
-      signals.map(
-        (signal) =>
-          signal.level,
-      ),
-    ),
-  ];
+  if (kind === 'demand') {
+    const strongSignals = signals.filter((s) => s.level === 'Strong' || s.level === 'Surging');
+    const weakSignals = signals.filter((s) => s.level === 'Weak');
+    const normalSignals = signals.filter((s) => s.level === 'Normal');
 
-  if (
-    kind === 'demand'
-  ) {
-    const hasWeak =
-      uniqueLevels.includes(
-        'Weak',
-      );
+    const weightStrong = strongSignals.reduce((acc, s) => acc + s.weight, 0);
+    const weightWeak = weakSignals.reduce((acc, s) => acc + s.weight, 0);
+    const weightNormal = normalSignals.reduce((acc, s) => acc + s.weight, 0);
+    const totalWeight = weightStrong + weightWeak + weightNormal;
 
-    const hasStrong =
-      uniqueLevels.some(
-        (level) =>
-          level === 'Strong' ||
-          level === 'Surging',
-      );
-
-    if (
-      hasWeak &&
-      hasStrong
-    ) {
+    if (totalWeight < 0.15) {
       return {
         level: 'Unknown',
-        evidence:
-          signals.map(
-            (signal) =>
-              `Conflicting demand signals: ${signal.level} — ${signal.source} (${signal.url})`,
-          ),
+        evidence: signals.map(
+          (s) => `Low-weighted demand signal (${s.level}, weight: ${s.weight.toFixed(2)}): ${s.source}`,
+        ),
+        conflict: false,
+      };
+    }
+
+    if (weightStrong >= 0.35 && weightWeak >= 0.35) {
+      return {
+        level: 'Unknown',
+        evidence: signals.map(
+          (s) => `Conflicting demand signal (${s.level}, weight: ${s.weight.toFixed(2)}): ${s.source} (${s.url})`,
+        ),
         conflict: true,
       };
     }
 
-    const demandRank: Record<
-      string,
-      number
-    > = {
-      Weak: 1,
-      Normal: 2,
-      Strong: 3,
-      Surging: 4,
-    };
+    let level: DemandLevel = 'Normal';
+    if (weightStrong > weightWeak && weightStrong >= weightNormal) {
+      level = strongSignals.some((s) => s.level === 'Surging') ? 'Surging' : 'Strong';
+    } else if (weightWeak > weightStrong && weightWeak >= weightNormal) {
+      level = 'Weak';
+    } else {
+      level = 'Normal';
+    }
 
-    const level =
-      uniqueLevels.reduce(
-        (
-          strongest,
-          current,
-        ) =>
-          (
-            demandRank[current] ??
-            0
-          ) >
-          (
-            demandRank[strongest] ??
-            0
-          )
-            ? current
-            : strongest,
-        uniqueLevels[0],
-      );
+    const evidence = signals.map(
+      (s) => `Demand (${s.level}) [freshness: ${s.freshness}, conf: ${s.confidence}, weight: ${s.weight.toFixed(2)}]: ${s.source}${s.url ? ` (${s.url})` : ''}`,
+    );
 
     return {
-      level:
-        level as DemandLevel,
-      evidence:
-        signals.map(
-          (signal) =>
-            `Demand (${level}): ${signal.source} (${signal.url})`,
-        ),
+      level,
+      evidence,
       conflict: false,
     };
   }
 
-  const hasHighSupply =
-    uniqueLevels.includes(
-      'High',
-    );
+  // kind === 'supply'
+  const highSignals = signals.filter((s) => s.level === 'High');
+  const constrainedSignals = signals.filter((s) => s.level === 'Tight' || s.level === 'Critical');
+  const normalSignals = signals.filter((s) => s.level === 'Normal');
 
-  const hasTightSupply =
-    uniqueLevels.some(
-      (level) =>
-        level === 'Tight' ||
-        level === 'Critical',
-    );
+  const weightHigh = highSignals.reduce((acc, s) => acc + s.weight, 0);
+  const weightConstrained = constrainedSignals.reduce((acc, s) => acc + s.weight, 0);
+  const weightNormal = normalSignals.reduce((acc, s) => acc + s.weight, 0);
+  const totalWeight = weightHigh + weightConstrained + weightNormal;
 
-  if (
-    hasHighSupply &&
-    hasTightSupply
-  ) {
+  if (totalWeight < 0.15) {
     return {
       level: 'Unknown',
-      evidence:
-        signals.map(
-          (signal) =>
-            `Conflicting supply signals: ${signal.level} — ${signal.source} (${signal.url})`,
-        ),
+      evidence: signals.map(
+        (s) => `Low-weighted supply signal (${s.level}, weight: ${s.weight.toFixed(2)}): ${s.source}`,
+      ),
+      conflict: false,
+    };
+  }
+
+  if (weightHigh >= 0.35 && weightConstrained >= 0.35) {
+    return {
+      level: 'Unknown',
+      evidence: signals.map(
+        (s) => `Conflicting supply signal (${s.level}, weight: ${s.weight.toFixed(2)}): ${s.source} (${s.url})`,
+      ),
       conflict: true,
     };
   }
 
-  const supplyRank: Record<
-    string,
-    number
-  > = {
-    Normal: 2,
-    High: 3,
-    Tight: 3,
-    Critical: 4,
-  };
+  let level: SupplyLevel = 'Normal';
+  if (weightHigh > weightConstrained && weightHigh >= weightNormal) {
+    level = 'High';
+  } else if (weightConstrained > weightHigh && weightConstrained >= weightNormal) {
+    level = constrainedSignals.some((s) => s.level === 'Critical') ? 'Critical' : 'Tight';
+  } else {
+    level = 'Normal';
+  }
 
-  const level =
-    uniqueLevels.reduce(
-      (
-        strongest,
-        current,
-      ) =>
-        (
-          supplyRank[current] ??
-          0
-        ) >
-        (
-          supplyRank[strongest] ??
-          0
-        )
-          ? current
-          : strongest,
-      uniqueLevels[0],
-    );
+  const evidence = signals.map(
+    (s) => `Supply (${s.level}) [freshness: ${s.freshness}, conf: ${s.confidence}, weight: ${s.weight.toFixed(2)}]: ${s.source}${s.url ? ` (${s.url})` : ''}`,
+  );
 
   return {
-    level:
-      level as SupplyLevel,
-    evidence:
-      signals.map(
-        (signal) =>
-          `Supply (${level}): ${signal.source} (${signal.url})`,
-      ),
+    level,
+    evidence,
     conflict: false,
   };
 }
@@ -2770,6 +2726,19 @@ export function supplyDemandEngine(
         );
 
       if (supply) {
+        const confidence: Confidence =
+          result.confidence ??
+          (supply === 'Normal' ? 'MEDIUM' : 'LOW');
+        const dataStatus: DataStatus =
+          result.data_status ?? 'REPORTED';
+        const freshness = freshnessOf(
+          result.published_date,
+        );
+        const weight = computeSignalWeight(
+          confidence,
+          freshness,
+          dataStatus,
+        );
         supplySignals.push({
           level: supply,
           source:
@@ -2777,10 +2746,12 @@ export function supplyDemandEngine(
             result.url,
           url:
             result.url,
-          confidence:
-            supply === 'Normal'
-              ? 'MEDIUM'
-              : 'LOW',
+          confidence,
+          freshness,
+          data_status: dataStatus,
+          published_date:
+            result.published_date ?? null,
+          weight,
         });
       }
 
@@ -2790,6 +2761,19 @@ export function supplyDemandEngine(
         );
 
       if (demand) {
+        const confidence: Confidence =
+          result.confidence ??
+          (demand === 'Normal' ? 'MEDIUM' : 'LOW');
+        const dataStatus: DataStatus =
+          result.data_status ?? 'REPORTED';
+        const freshness = freshnessOf(
+          result.published_date,
+        );
+        const weight = computeSignalWeight(
+          confidence,
+          freshness,
+          dataStatus,
+        );
         demandSignals.push({
           level: demand,
           source:
@@ -2797,10 +2781,12 @@ export function supplyDemandEngine(
             result.url,
           url:
             result.url,
-          confidence:
-            demand === 'Normal'
-              ? 'MEDIUM'
-              : 'LOW',
+          confidence,
+          freshness,
+          data_status: dataStatus,
+          published_date:
+            result.published_date ?? null,
+          weight,
         });
       }
     }
