@@ -179,6 +179,69 @@ const normalizedMissingMetadata = normalizePricePoint(missingMetadataPoint);
 assert('data_status is NOT invented when raw is missing', normalizedMissingMetadata.data_status === undefined, `got ${normalizedMissingMetadata.data_status}`);
 assert('confidence is NOT invented when raw is missing', normalizedMissingMetadata.confidence === undefined, `got ${normalizedMissingMetadata.confidence}`);
 
+console.log('\n=== TEST 7: Publication Date & Freshness Derivation Rules ===');
+
+const now = Date.now();
+const MS_PER_DAY = 86400000;
+const date3DaysAgo = new Date(now - 3 * MS_PER_DAY).toISOString().slice(0, 10);
+const date45DaysAgo = new Date(now - 45 * MS_PER_DAY).toISOString().slice(0, 10);
+
+const recentPublishedPoint: PricePoint = {
+  label: 'Recent Wheat Spot Price',
+  location: 'Chicago',
+  price: 220,
+  currency: 'USD',
+  unit: 'MT',
+  normalized_price_usd: 220,
+  normalized_unit: 'USD/MT',
+  source: 'https://example.com/recent-pub',
+  data_status: 'REPORTED',
+  confidence: 'MEDIUM',
+  freshness: 'UNKNOWN',
+  published_date: date3DaysAgo,
+};
+
+const normalizedRecentPub = normalizePricePoint(recentPublishedPoint);
+assert('published_date is preserved in output', normalizedRecentPub.published_date === date3DaysAgo, `got "${normalizedRecentPub.published_date}"`);
+assert('Freshness calculated from recent published_date -> CURRENT', normalizedRecentPub.freshness === 'CURRENT', `got "${normalizedRecentPub.freshness}"`);
+
+const stalePublishedPoint: PricePoint = {
+  label: 'Stale Wheat Price',
+  location: 'Chicago',
+  price: 210,
+  currency: 'USD',
+  unit: 'MT',
+  normalized_price_usd: 210,
+  normalized_unit: 'USD/MT',
+  source: 'https://example.com/stale-pub',
+  data_status: 'REPORTED',
+  confidence: 'MEDIUM',
+  freshness: 'UNKNOWN',
+  published_date: date45DaysAgo,
+};
+
+const normalizedStalePub = normalizePricePoint(stalePublishedPoint);
+assert('Freshness calculated from older published_date -> STALE', normalizedStalePub.freshness === 'STALE', `got "${normalizedStalePub.freshness}"`);
+
+const fallbackObsPoint: PricePoint = {
+  label: 'Observation Date Fallback Price',
+  location: 'Global',
+  price: 230,
+  currency: 'USD',
+  unit: 'MT',
+  normalized_price_usd: 230,
+  normalized_unit: 'USD/MT',
+  source: 'https://example.com/fallback-obs',
+  data_status: 'REPORTED',
+  confidence: 'MEDIUM',
+  freshness: 'UNKNOWN',
+  published_date: null,
+  observation_date: date3DaysAgo,
+};
+
+const normalizedFallbackObs = normalizePricePoint(fallbackObsPoint);
+assert('When published_date is missing, freshness falls back to observation_date -> CURRENT', normalizedFallbackObs.freshness === 'CURRENT', `got "${normalizedFallbackObs.freshness}"`);
+
 console.log('\n=== ALL NORMALIZATION TESTS SUMMARY ===');
 if (process.exitCode) {
   console.log('NORMALIZATION TEST SUITE FAILED — see details above.');

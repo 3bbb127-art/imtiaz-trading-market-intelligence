@@ -246,8 +246,18 @@ export function normalizePricePoint(
     }
   }
 
-  // Preserve publication date freshness calculation
-  const freshness: Freshness = p.freshness ?? freshnessOf(p.observation_date);
+  // Calculate freshness dynamically:
+  // 1. If published_date is present, calculate freshness from published_date
+  // 2. Else if observation_date is present, calculate freshness from observation_date
+  // 3. Otherwise retain p.freshness or 'UNKNOWN'
+  let freshness: Freshness = 'UNKNOWN';
+  if (p.published_date) {
+    freshness = freshnessOf(p.published_date);
+  } else if (p.observation_date) {
+    freshness = freshnessOf(p.observation_date);
+  } else if (p.freshness) {
+    freshness = p.freshness;
+  }
 
   return {
     ...p,
@@ -267,5 +277,6 @@ export function normalizePricePoint(
     confidence: p.confidence,
     freshness,
     observation_date: p.observation_date,
+    published_date: p.published_date ?? null,
   };
 }

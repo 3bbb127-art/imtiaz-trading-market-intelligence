@@ -165,6 +165,7 @@ export interface PricePoint {
   confidence: Confidence;
   freshness: Freshness;
   observation_date?: string;
+  published_date?: string | null;
   note?: string;
 }
 
