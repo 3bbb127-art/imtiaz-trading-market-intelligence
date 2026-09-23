@@ -2132,8 +2132,7 @@ function extractPricePointsFromResearch(
     '€': 'EUR',
     '£': 'GBP',
   };
-
-  const addPoint = (
+const addPoint = (
   result: ResearchProviderResult,
   location: string,
   price: number,
@@ -2146,49 +2145,6 @@ function extractPricePointsFromResearch(
     price <= 0
   ) {
     return;
-  }
-
-  const normalizedLocation =
-    normalizeText(location);
-
-  /*
-   * Route / geographic scope:
-   *
-   * For an explicit import route such as:
-   *   Russia -> Iran
-   *
-   * research price observations must belong to
-   * one of the requested route markets.
-   */
-  if (
-    !isComparison &&
-    (
-      input.origin ||
-      input.destination
-    )
-  ) {
-    const allowedRouteMarkets = [
-  input.origin,
-  input.destination,
-  input.city,
-]
-      .map(normalizeText)
-      .filter(Boolean);
-
-    if (
-      allowedRouteMarkets.length > 0 &&
-      !allowedRouteMarkets.some(
-        (market) =>
-          normalizedLocation ===
-            market ||
-          entityMatchesText(
-            market,
-            location,
-          ),
-      )
-    ) {
-      return;
-    }
   }
 
   const normalized =
