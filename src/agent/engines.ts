@@ -2889,44 +2889,57 @@ export function pricePointEngine(
         undefined,
     });
   }
+points.push(
+  ...extractPricePointsFromResearch(
+    input,
+  ),
+);
 
-  points.push(
-    ...extractPricePointsFromResearch(
-      input,
-    ),
-  );
+const scopedPoints =
+  input.city &&
+  !input.origin &&
+  !input.destination
+    ? points.filter(
+        (point) =>
+          normalizeText(
+            point.location,
+          ) ===
+          normalizeText(
+            input.city,
+          ),
+      )
+    : points;
 
-  points.sort(
-    (a, b) => {
-      const dateCompare =
-        (
-          b.observation_date ??
-          ''
-        ).localeCompare(
-          a.observation_date ??
-          '',
-        );
-
-      if (
-        dateCompare !== 0
-      ) {
-        return dateCompare;
-      }
-
-      return (
-        confidenceRank(
-          b.confidence,
-        ) -
-        confidenceRank(
-          a.confidence,
-        )
+scopedPoints.sort(
+  (a, b) => {
+    const dateCompare =
+      (
+        b.observation_date ??
+        ''
+      ).localeCompare(
+        a.observation_date ??
+        '',
       );
-    },
-  );
 
-  return points;
+    if (
+      dateCompare !== 0
+    ) {
+      return dateCompare;
+    }
+
+    return (
+      confidenceRank(
+        b.confidence,
+      ) -
+      confidenceRank(
+        a.confidence,
+      )
+    );
+  },
+);
+
+return scopedPoints;
 }
-
 // -----------------------------------------------------------------------------
 // Price change
 // -----------------------------------------------------------------------------
