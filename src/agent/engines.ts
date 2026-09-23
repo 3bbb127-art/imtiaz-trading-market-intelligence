@@ -6339,11 +6339,11 @@ const dataPoints =
         : [
             'No positive or negative signals strong enough to highlight.',
           ],
-
-    data_gaps:
+ data_gaps:
       [
         ...gaps,
         ...warnings,
       ],
   };
+}
 }
