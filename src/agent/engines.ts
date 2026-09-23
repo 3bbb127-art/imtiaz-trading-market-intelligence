@@ -4466,44 +4466,55 @@ export function forecastEngine(
         : 'LOW';
   }
 
-  if (
+  const cityOnlyWithoutLocalPrice =
+  Boolean(
+    input.city &&
+    !input.origin &&
+    !input.destination &&
+    points.length === 0,
+  );
+
+if (
+  !cityOnlyWithoutLocalPrice &&
+  (
     supply === 'Tight' ||
     supply === 'Critical'
-  ) {
-    priceDirection =
-      priceDirection ===
-      'DOWN'
-        ? 'FLAT'
-        : 'UP';
+  )
+) {
+  priceDir =
+    priceDir === 'DOWN'
+      ? 'FLAT'
+      : 'UP';
 
-    rationale.push(
-      'Tight supply pressures prices upward.',
-    );
-  }
+  rationale.push(
+    'Tight supply pressures prices upward.',
+  );
+}
 
-  if (
+if (
+  !cityOnlyWithoutLocalPrice &&
+  (
     demand === 'Strong' ||
     demand === 'Surging'
-  ) {
-    priceDirection =
-      priceDirection ===
-      'DOWN'
-        ? 'FLAT'
-        : 'UP';
+  )
+) {
+  priceDir =
+    priceDir === 'DOWN'
+      ? 'FLAT'
+      : 'UP';
 
-    rationale.push(
-      'Strong demand supports prices.',
-    );
-  }
+  rationale.push(
+    'Strong demand supports prices.',
+  );
+}
 
-  if (
-    supply === 'High'
-  ) {
-    rationale.push(
-      'High supply eases price pressure.',
-    );
-  }
-
+if (
+  cityOnlyWithoutLocalPrice
+) {
+  rationale.push(
+    'No verified local price series; price direction remains uncertain.',
+  );
+}
   const marketRisk:
     Forecast['market_risk'] =
     sentiment === 'Negative' ||
