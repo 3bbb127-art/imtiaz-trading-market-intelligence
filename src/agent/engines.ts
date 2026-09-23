@@ -4377,7 +4377,6 @@ export function anomalyEngine(
 
   return anomalies;
 }
-
 // -----------------------------------------------------------------------------
 // Forecast
 // -----------------------------------------------------------------------------
@@ -4466,12 +4465,21 @@ export function forecastEngine(
         : 'LOW';
   }
 
+  const hasVerifiedLocalPrice =
+    points.some(
+      (point) =>
+        String(
+          point.data_status ?? '',
+        ).toUpperCase() ===
+        'VERIFIED',
+    );
+
   const cityOnlyWithoutLocalPrice =
     Boolean(
       input.city &&
       !input.origin &&
       !input.destination &&
-      points.length === 0,
+      !hasVerifiedLocalPrice,
     );
 
   if (
