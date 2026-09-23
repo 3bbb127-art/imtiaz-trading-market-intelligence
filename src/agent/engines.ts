@@ -2489,7 +2489,16 @@ function extractPricePointsFromResearch(
       ) {
         continue;
       }
+   const hasGeographicScope =
+    Boolean(
+    normalizeText(input.city) ||
+    normalizeText(input.destination) ||
+    normalizeText(input.origin),
+   );
 
+ if (hasGeographicScope && !location) {
+  continue;
+  }
       addPoint(
         result,
         location?.name ??
