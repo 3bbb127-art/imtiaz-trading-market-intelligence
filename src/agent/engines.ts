@@ -3697,13 +3697,6 @@ export function demandEngine(
         'MEDIUM',
     ).length;
 
-  const lowCount =
-    signals.filter(
-      (signal) =>
-        signal.confidence ===
-        'LOW',
-    ).length;
-
   let confidence:
     Confidence = 'LOW';
 
