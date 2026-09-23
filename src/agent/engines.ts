@@ -3651,7 +3651,6 @@ function classifyDemandTrendFromText(
 
   return null;
 }
-
 export function demandEngine(
   input: EngineInput,
 ): DemandIntelligence {
@@ -3849,12 +3848,14 @@ export function demandEngine(
         'MEDIUM';
     }
   }
+
   if (
     level === 'Unknown'
   ) {
     confidence =
       'LOW';
   }
+
   let summary: string;
 
   if (
@@ -3878,6 +3879,7 @@ export function demandEngine(
     summary,
   };
 }
+
 // -----------------------------------------------------------------------------
 // Sentiment
 // -----------------------------------------------------------------------------
@@ -4035,7 +4037,6 @@ export function sentimentEngine(
 // -----------------------------------------------------------------------------
 // Landed cost
 // -----------------------------------------------------------------------------
-
 export function landedCostEngine(
   input: EngineInput,
 ): LandedCostBreakdown | null {
