@@ -6203,21 +6203,63 @@ export function evaluationEngine(
     );
 
   const scopedRows =
-  scopeMarketRows(input);
+    scopeMarketRows(input);
 
-const scopedResearch =
-  scopeResearchResults(input);
+  const scopedResearch =
+    scopeResearchResults(input);
 
-const dataPoints =
-  points.length +
-  scopedRows.length +
-  scopedResearch.length +
-  input.stockRows.length +
-  input.shipmentRows.length;
+  const commodityScope =
+    normalizeText(
+      input.commodity,
+    );
+
+  const scopedStockRows =
+    input.stockRows.filter(
+      (row) =>
+        !commodityScope ||
+        normalizeText(
+          row.commodity,
+        ) ===
+          commodityScope,
+    );
+
+  const scopedShipmentRows =
+    input.shipmentRows.filter(
+      (row) =>
+        !commodityScope ||
+        normalizeText(
+          row.commodity,
+        ) ===
+          commodityScope,
+    );
+
+  const dataPoints =
+    points.length +
+    scopedRows.length +
+    scopedResearch.length +
+    scopedStockRows.length +
+    scopedShipmentRows.length;
+
+  const independentSources =
+    new Set(
+      [
+        ...scopedRows.map(
+          (row) =>
+            row.source ??
+            'Stored data',
+        ),
+
+        ...scopedResearch.map(
+          (result) =>
+            result.url ||
+            result.title,
+        ),
+      ].filter(Boolean),
+    ).size;
 
   const hasVerifiedLocalData =
     input.city
-      ? input.marketRows.some(
+      ? scopedRows.some(
           (row) =>
             normalizeText(
               row.city,
@@ -6236,14 +6278,14 @@ const dataPoints =
             ),
         )
       : input.destination
-        ? input.marketRows.some(
+        ? scopedRows.some(
             (row) =>
               normalizeText(
                 row.country,
               ) ===
                 normalizeText(
                   input.destination,
-                ) &&
+              ) &&
               (
                 !input.commodity ||
                 normalizeText(
@@ -6254,8 +6296,35 @@ const dataPoints =
                   )
               ),
           )
-        : input.marketRows.length > 0;
+        : scopedRows.length > 0;
 
+  let confidence:
+    Confidence = 'LOW';
+
+  if (
+    hasVerifiedLocalData &&
+    dataPoints >= 5 &&
+    independentSources >= 2 &&
+    findings.conflicts.length ===
+      0
+  ) {
+    confidence =
+      'HIGH';
+  } else if (
+    dataPoints >= 2 &&
+    findings.conflicts.length ===
+      0
+  ) {
+    confidence =
+      'MEDIUM';
+  }
+
+  if (
+    findings.conflicts.length > 0
+  ) {
+    confidence =
+      'LOW';
+  }
   let confidence:
     Confidence = 'LOW';
 
