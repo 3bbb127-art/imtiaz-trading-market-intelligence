@@ -6346,4 +6346,3 @@ const dataPoints =
       ],
   };
 }
-}
