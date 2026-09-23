@@ -2134,69 +2134,110 @@ function extractPricePointsFromResearch(
   };
 
   const addPoint = (
-    result: ResearchProviderResult,
-    location: string,
-    price: number,
-    currency: string,
-    unit: string,
-    note: string,
-  ) => {
+  result: ResearchProviderResult,
+  location: string,
+  price: number,
+  currency: string,
+  unit: string,
+  note: string,
+) => {
+  if (
+    !Number.isFinite(price) ||
+    price <= 0
+  ) {
+    return;
+  }
+
+  const normalizedLocation =
+    normalizeText(location);
+
+  /*
+   * Route / geographic scope:
+   *
+   * For an explicit import route such as:
+   *   Russia -> Iran
+   *
+   * research price observations must belong to
+   * one of the requested route markets.
+   */
+  if (
+    !isComparison &&
+    (
+      input.origin ||
+      input.destination
+    )
+  ) {
+    const allowedRouteMarkets = [
+      input.origin,
+      input.destination,
+    ]
+      .map(normalizeText)
+      .filter(Boolean);
+
     if (
-      !Number.isFinite(price) ||
-      price <= 0
+      allowedRouteMarkets.length > 0 &&
+      !allowedRouteMarkets.some(
+        (market) =>
+          normalizedLocation ===
+            market ||
+          entityMatchesText(
+            market,
+            location,
+          ),
+      )
     ) {
       return;
     }
+  }
 
-    const normalized =
-      normalizeToUsdPerMtWithFx(
-        price,
-        currency,
-        unit,
-        input.fxRates,
-      );
-
-    points.push({
-      label:
-        `${result.title || 'Web research'} — ${location}`,
-
-      location,
-
+  const normalized =
+    normalizeToUsdPerMtWithFx(
       price,
-
       currency,
-
       unit,
+      input.fxRates,
+    );
 
-      normalized_price_usd:
-        normalized,
+  points.push({
+    label:
+      `${result.title || 'Web research'} — ${location}`,
 
-      normalized_unit:
-        'USD/MT',
+    location,
 
-      source:
-        result.url ||
-        result.title ||
-        'web research',
+    price,
 
-      data_status:
-        'REPORTED',
+    currency,
 
-      confidence:
-        'MEDIUM',
+    unit,
 
-      freshness:
-        freshnessOf(
-          result.published_date,
-        ),
+    normalized_price_usd:
+      normalized,
 
-      observation_date:
-        result.published_date ?? undefined,
+    normalized_unit:
+      'USD/MT',
 
-      note,
-    });
-  };
+    source:
+      result.url ||
+      result.title ||
+      'web research',
 
+    data_status:
+      'REPORTED',
+
+    confidence:
+      'MEDIUM',
+
+    freshness:
+      freshnessOf(
+        result.published_date,
+      ),
+
+    observation_date:
+      result.published_date ?? undefined,
+
+    note,
+  });
+};
   /**
    * Global country aliases used only for structured market-price tables.
    */
