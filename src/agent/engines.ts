@@ -1472,26 +1472,69 @@ function extractSupplyDemandFromResearch(
         )
         .filter(Boolean);
 
-      const matchedSentences =
-        sentences.filter(
-          (sentence) =>
-            targetTerms.some(
-              (term) =>
-                entityMatchesText(
-                  term,
-                  sentence,
-                ),
-            ),
+      const matchedIndexes =
+        sentences.reduce<number[]>(
+          (indexes, sentence, index) => {
+            const matched =
+              targetTerms.some(
+                (term) =>
+                  entityMatchesText(
+                    term,
+                    sentence,
+                  ),
+              );
+
+            if (matched) {
+              indexes.push(index);
+            }
+
+            return indexes;
+          },
+          [],
         );
 
       if (
-        matchedSentences.length === 0
+        matchedIndexes.length === 0
       ) {
         continue;
       }
 
+      const evidenceIndexes =
+        new Set<number>();
+
+      for (
+        const index of matchedIndexes
+      ) {
+        for (
+          let offset = -2;
+          offset <= 2;
+          offset += 1
+        ) {
+          const nearbyIndex =
+            index + offset;
+
+          if (
+            nearbyIndex >= 0 &&
+            nearbyIndex <
+              sentences.length
+          ) {
+            evidenceIndexes.add(
+              nearbyIndex,
+            );
+          }
+        }
+      }
+
       evidenceText =
-        matchedSentences.join('. ');
+        [...evidenceIndexes]
+          .sort(
+            (a, b) => a - b,
+          )
+          .map(
+            (index) =>
+              sentences[index],
+          )
+          .join('. ');
     }
 
     const supply =
