@@ -6202,7 +6202,7 @@ export function evaluationEngine(
         competitionPenalty,
     );
 
-  const scopedRows =
+ const scopedRows =
     scopeMarketRows(input);
 
   const scopedResearch =
@@ -6248,7 +6248,6 @@ export function evaluationEngine(
             row.source ??
             'Stored data',
         ),
-
         ...scopedResearch.map(
           (result) =>
             result.url ||
@@ -6297,10 +6296,21 @@ export function evaluationEngine(
               ),
           )
         : scopedRows.length > 0;
-  else if (
+
+  let confidence:
+    Confidence = 'LOW';
+
+  if (
+    hasVerifiedLocalData &&
+    dataPoints >= 5 &&
+    independentSources >= 2 &&
+    findings.conflicts.length === 0
+  ) {
+    confidence =
+      'HIGH';
+  } else if (
     dataPoints >= 2 &&
-    findings.conflicts.length ===
-      0
+    findings.conflicts.length === 0
   ) {
     confidence =
       'MEDIUM';
@@ -6311,23 +6321,6 @@ export function evaluationEngine(
   ) {
     confidence =
       'LOW';
-  }
-  let confidence:
-    Confidence = 'LOW';
-
-  if (
-    hasVerifiedLocalData &&
-    dataPoints >= 5 &&
-    findings.conflicts.length ===
-      0
-  ) {
-    confidence =
-      'HIGH';
-  } else if (
-    dataPoints >= 2
-  ) {
-    confidence =
-      'MEDIUM';
   }
 
   let cappedScore =
@@ -6346,6 +6339,7 @@ export function evaluationEngine(
         30,
       );
   }
+
   return {
     commodity:
       input.commodity ??
@@ -6396,7 +6390,8 @@ export function evaluationEngine(
         : [
             'No positive or negative signals strong enough to highlight.',
           ],
- data_gaps:
+
+    data_gaps:
       [
         ...gaps,
         ...warnings,
