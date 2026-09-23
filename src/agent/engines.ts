@@ -1425,24 +1425,78 @@ function extractSupplyDemandFromResearch(
   supplySignals: ResearchSignal[];
   demandSignals: ResearchSignal[];
 } {
-  const supplySignals:
-    ResearchSignal[] = [];
+  const supplySignals: ResearchSignal[] = [];
+  const demandSignals: ResearchSignal[] = [];
 
-  const demandSignals:
-    ResearchSignal[] = [];
+  const normalize = (
+    value: string | null | undefined,
+  ) => normalizeText(value);
 
-  const research =
-    scopeResearchResults(input);
+  const city = normalize(input.city);
+  const origin = normalize(input.origin);
+  const destination = normalize(
+    input.destination,
+  );
+
+  const geographicScope = Boolean(
+    city ||
+    origin ||
+    destination,
+  );
 
   for (
-    const result of research
+    const result of input.researchResults
   ) {
-    const text =
+    const fullText =
       `${result.title} ${result.snippet}`;
+
+    let evidenceText = fullText;
+
+    if (geographicScope) {
+      const targetTerms = [
+        city,
+        origin,
+        destination,
+      ].filter(
+        (
+          value,
+        ): value is string =>
+          Boolean(value),
+      );
+
+      const sentences = fullText
+        .split(/[.!?]+/)
+        .map(
+          (sentence) =>
+            sentence.trim(),
+        )
+        .filter(Boolean);
+
+      const matchedSentences =
+        sentences.filter(
+          (sentence) =>
+            targetTerms.some(
+              (term) =>
+                entityMatchesText(
+                  term,
+                  sentence,
+                ),
+            ),
+        );
+
+      if (
+        matchedSentences.length === 0
+      ) {
+        continue;
+      }
+
+      evidenceText =
+        matchedSentences.join('. ');
+    }
 
     const supply =
       classifySupplyFromText(
-        text,
+        evidenceText,
       );
 
     if (supply) {
@@ -1451,8 +1505,7 @@ function extractSupplyDemandFromResearch(
         source:
           result.title ||
           result.url,
-        url:
-          result.url,
+        url: result.url,
         confidence:
           supply === 'Normal'
             ? 'MEDIUM'
@@ -1462,7 +1515,7 @@ function extractSupplyDemandFromResearch(
 
     const demand =
       classifyDemandFromText(
-        text,
+        evidenceText,
       );
 
     if (demand) {
@@ -1471,8 +1524,7 @@ function extractSupplyDemandFromResearch(
         source:
           result.title ||
           result.url,
-        url:
-          result.url,
+        url: result.url,
         confidence:
           demand === 'Normal'
             ? 'MEDIUM'
@@ -1486,7 +1538,6 @@ function extractSupplyDemandFromResearch(
     demandSignals,
   };
 }
-
 function resolveSignals(
   signals: ResearchSignal[],
   kind:
