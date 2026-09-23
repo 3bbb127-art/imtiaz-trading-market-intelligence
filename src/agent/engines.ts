@@ -3545,21 +3545,31 @@ export function demandEngine(
     }
 
     signals.push({
-      level: demand,
-      trend: 'UNKNOWN',
+      level:
+        demand,
+
+      trend:
+        'UNKNOWN',
+
       source:
         row.source ??
         'Stored data',
-      url: '',
+
+      url:
+        '',
+
       snippet:
         row.demand ??
         '',
+
       confidence:
         row.confidence,
+
       freshness:
         freshnessOf(
           row.observation_date,
         ),
+
       evidence_type:
         'OBSERVED',
     });
@@ -3584,7 +3594,8 @@ export function demandEngine(
     }
 
     signals.push({
-      level: demand,
+      level:
+        demand,
 
       trend:
         classifyDemandTrendFromText(
@@ -3620,6 +3631,23 @@ export function demandEngine(
     });
   }
 
+  /*
+   * The calibrated supply/demand engine is
+   * authoritative for the final Demand level.
+   */
+  const calibrated =
+    supplyDemandEngine(
+      input,
+    );
+
+  const level =
+    calibrated.demand;
+
+  const score =
+    demandScore(
+      level,
+    );
+
   const observed =
     signals.filter(
       (signal) =>
@@ -3634,41 +3662,30 @@ export function demandEngine(
         'INFERRED',
     );
 
-  let level:
-    DemandLevel = 'Unknown';
-
-  let confidence:
-    Confidence = 'LOW';
-
-  let trend:
-    | 'UP'
-    | 'DOWN'
-    | 'FLAT'
-    | 'UNKNOWN' =
-    'UNKNOWN';
-
-  if (
-    observed.length > 0
-  ) {
-    const observedLevels =
-      [
-        ...new Set(
-          observed.map(
+  const trends =
+    [
+      ...new Set(
+        signals
+          .map(
             (signal) =>
-              signal.level,
+              signal.trend,
+          )
+          .filter(
+            (value) =>
+              value !==
+              'UNKNOWN',
           ),
-        ),
-      ];
+      ),
+    ];
 
-    if (
-      observedLevels.length ===
-      1
-    ) {
-      level =
-        observedLevels[0];
+  const trend =
+    trends.length === 1
+      ? trends[0]
+      : 'UNKNOWN';
 
-      confidence =
-        observed.reduce(
+  const confidence =
+    signals.length > 0
+      ? signals.reduce(
           (
             best,
             signal,
@@ -3682,136 +3699,21 @@ export function demandEngine(
               ? signal.confidence
               : best,
           'LOW' as Confidence,
-        );
-
-      trend =
-        observed[0].trend;
-    }
-  } else if (
-    inferred.length > 0
-  ) {
-    const inferredLevels =
-      [
-        ...new Set(
-          inferred.map(
-            (signal) =>
-              signal.level,
-          ),
-        ),
-      ];
-
-    if (
-      inferredLevels.length ===
-      1
-    ) {
-      level =
-        inferredLevels[0];
-
-      confidence =
-        inferred.reduce(
-          (
-            best,
-            signal,
-          ) =>
-            confidenceRank(
-              signal.confidence,
-            ) >
-            confidenceRank(
-              best,
-            )
-              ? signal.confidence
-              : best,
-          'LOW' as Confidence,
-        );
-
-      const trends =
-        [
-          ...new Set(
-            inferred
-              .map(
-                (signal) =>
-                  signal.trend,
-              )
-              .filter(
-                (value) =>
-                  value !==
-                  'UNKNOWN',
-              ),
-          ),
-        ];
-
-      if (
-        trends.length === 1
-      ) {
-        trend =
-          trends[0];
-      }
-    }
-  }
-
-  if (
-    observed.length > 0
-  ) {
-    const conflict =
-      new Set(
-        observed.map(
-          (signal) =>
-            signal.level,
-        ),
-      ).size > 1;
-
-    if (conflict) {
-      level =
-        'Unknown';
-
-      confidence =
-        'LOW';
-
-      trend =
-        'UNKNOWN';
-    }
-  } else if (
-    inferred.length > 0
-  ) {
-    const conflict =
-      new Set(
-        inferred.map(
-          (signal) =>
-            signal.level,
-        ),
-      ).size > 1;
-
-    if (conflict) {
-      level =
-        'Unknown';
-
-      confidence =
-        'LOW';
-
-      trend =
-        'UNKNOWN';
-    }
-  }
-
-  const score =
-    demandScore(level);
+        )
+      : 'LOW';
 
   let summary: string;
 
   if (
-    level === 'Unknown' &&
-    signals.length === 0
-  ) {
-    summary =
-      'No demand evidence found in available data.';
-  } else if (
     level === 'Unknown'
   ) {
     summary =
-      `Conflicting demand signals from ${signals.length} source(s) — unable to determine clear demand level.`;
+      signals.length === 0
+        ? 'No demand evidence found in available data.'
+        : `Demand calibration is unresolved because the available evidence is conflicting or insufficient (${signals.length} signal(s)).`;
   } else {
     summary =
-      `Demand assessed as ${level} (score: ${score}/100, trend: ${trend}). Based on ${observed.length} observed signal(s) and ${inferred.length} inferred signal(s) from scoped research.`;
+      `Demand calibrated as ${level} (score: ${score}/100, trend: ${trend}). Based on ${observed.length} observed signal(s) and ${inferred.length} inferred signal(s).`;
   }
 
   return {
@@ -3823,7 +3725,6 @@ export function demandEngine(
     summary,
   };
 }
-
 // -----------------------------------------------------------------------------
 // Sentiment
 // -----------------------------------------------------------------------------
