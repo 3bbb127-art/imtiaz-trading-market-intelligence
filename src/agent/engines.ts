@@ -1376,149 +1376,303 @@ function resolveSignals(
     };
   }
 
-  const uniqueLevels = [
-    ...new Set(
-      signals.map(
-        (signal) =>
-          signal.level,
-      ),
-    ),
-  ];
+  const sourceCounts =
+    new Map<string, number>();
 
-  if (
-    kind === 'demand'
+  for (
+    const signal of signals
   ) {
-    const hasWeak =
-      uniqueLevels.includes(
-        'Weak',
+    const sourceKey =
+      normalizeText(
+        signal.url ||
+          signal.source ||
+          'unknown-source',
       );
 
-    const hasStrong =
-      uniqueLevels.some(
-        (level) =>
-          level === 'Strong' ||
-          level === 'Surging',
-      );
+    sourceCounts.set(
+      sourceKey,
+      (sourceCounts.get(
+        sourceKey,
+      ) ?? 0) + 1,
+    );
+  }
 
-    if (
-      hasWeak &&
-      hasStrong
-    ) {
-      return {
-        level: 'Unknown',
-        evidence:
-          signals.map(
-            (signal) =>
-              `Conflicting demand signals: ${signal.level} — ${signal.source} (${signal.url})`,
-          ),
-        conflict: true,
-      };
-    }
-
-    const demandRank: Record<
-      string,
-      number
-    > = {
-      Weak: 1,
-      Normal: 2,
-      Strong: 3,
-      Surging: 4,
+  const confidenceWeight:
+    Record<Confidence, number> = {
+      HIGH: 1,
+      MEDIUM: 0.7,
+      LOW: 0.4,
     };
 
-    const level =
-      uniqueLevels.reduce(
-        (
-          strongest,
-          current,
-        ) =>
-          (
-            demandRank[current] ??
-            0
-          ) >
-          (
-            demandRank[strongest] ??
-            0
-          )
-            ? current
-            : strongest,
-        uniqueLevels[0],
-      );
-
-    return {
+  const levelWeight =
+    (
       level:
-        level as DemandLevel,
-      evidence:
-        signals.map(
-          (signal) =>
-            `Demand (${level}): ${signal.source} (${signal.url})`,
-        ),
+        | SupplyLevel
+        | DemandLevel,
+    ): number => {
+      if (
+        kind === 'demand'
+      ) {
+        switch (level) {
+          case 'Weak':
+            return 1;
+
+          case 'Normal':
+            return 2;
+
+          case 'Strong':
+            return 3;
+
+          case 'Surging':
+            return 4;
+
+          default:
+            return 0;
+        }
+      }
+
+      switch (level) {
+        case 'High':
+          return 1;
+
+        case 'Normal':
+          return 2;
+
+        case 'Tight':
+          return 3;
+
+        case 'Critical':
+          return 4;
+
+        default:
+          return 0;
+      }
+    };
+
+  const weightedSignals =
+    signals.map(
+      (signal) => {
+        const sourceKey =
+          normalizeText(
+            signal.url ||
+              signal.source ||
+              'unknown-source',
+          );
+
+        const sourceCount =
+          sourceCounts.get(
+            sourceKey,
+          ) ?? 1;
+
+        const baseWeight =
+          confidenceWeight[
+            signal.confidence
+          ] ?? 0.4;
+
+        /*
+         * Prevent repeated signals from one source
+         * from dominating the calibration.
+         */
+        const weight =
+          baseWeight /
+          Math.max(
+            1,
+            Math.sqrt(sourceCount),
+          );
+
+        return {
+          signal,
+          weight,
+        };
+      },
+    );
+
+  const totalWeight =
+    weightedSignals.reduce(
+      (sum, item) =>
+        sum + item.weight,
+      0,
+    );
+
+  if (
+    totalWeight <= 0
+  ) {
+    return {
+      level: 'Unknown',
+      evidence: [],
       conflict: false,
     };
   }
 
-  const hasHighSupply =
-    uniqueLevels.includes(
-      'High',
-    );
+  const weightedAverage =
+    weightedSignals.reduce(
+      (sum, item) =>
+        sum +
+        levelWeight(
+          item.signal.level,
+        ) *
+          item.weight,
+      0,
+    ) /
+    totalWeight;
 
-  const hasTightSupply =
-    uniqueLevels.some(
-      (level) =>
-        level === 'Tight' ||
-        level === 'Critical',
-    );
+  let level:
+    | SupplyLevel
+    | DemandLevel;
 
   if (
-    hasHighSupply &&
-    hasTightSupply
+    kind === 'demand'
+  ) {
+    if (
+      weightedAverage >=
+      3.5
+    ) {
+      level = 'Surging';
+    } else if (
+      weightedAverage >=
+      2.5
+    ) {
+      level = 'Strong';
+    } else if (
+      weightedAverage >=
+      1.5
+    ) {
+      level = 'Normal';
+    } else {
+      level = 'Weak';
+    }
+  } else {
+    if (
+      weightedAverage >=
+      3.5
+    ) {
+      level = 'Critical';
+    } else if (
+      weightedAverage >=
+      2.5
+    ) {
+      level = 'Tight';
+    } else if (
+      weightedAverage >=
+      1.5
+    ) {
+      level = 'Normal';
+    } else {
+      level = 'High';
+    }
+  }
+
+  const groupWeight =
+    (
+      group: (
+        | SupplyLevel
+        | DemandLevel
+      )[],
+    ): number =>
+      weightedSignals
+        .filter(
+          (item) =>
+            group.includes(
+              item.signal.level,
+            ),
+        )
+        .reduce(
+          (sum, item) =>
+            sum + item.weight,
+          0,
+        );
+
+  let conflict =
+    false;
+
+  if (
+    kind === 'demand'
+  ) {
+    const weakWeight =
+      groupWeight([
+        'Weak',
+      ]);
+
+    const strongWeight =
+      groupWeight([
+        'Strong',
+        'Surging',
+      ]);
+
+    conflict =
+      weakWeight >=
+        totalWeight * 0.25 &&
+      strongWeight >=
+        totalWeight * 0.25;
+  } else {
+    const highWeight =
+      groupWeight([
+        'High',
+      ]);
+
+    const tightWeight =
+      groupWeight([
+        'Tight',
+        'Critical',
+      ]);
+
+    conflict =
+      highWeight >=
+        totalWeight * 0.25 &&
+      tightWeight >=
+        totalWeight * 0.25;
+  }
+
+  /*
+   * Conflicting material evidence must not be hidden
+   * behind an averaged level.
+   */
+  if (
+    conflict
   ) {
     return {
       level: 'Unknown',
       evidence:
-        signals.map(
-          (signal) =>
-            `Conflicting supply signals: ${signal.level} — ${signal.source} (${signal.url})`,
+        weightedSignals.map(
+          (item) =>
+            `${
+              kind === 'demand'
+                ? 'Demand'
+                : 'Supply'
+            } (${item.signal.level}): ${
+              item.signal.source
+            } (${
+              item.signal.url ||
+              'no url'
+            }; confidence ${
+              item.signal.confidence
+            }; weight ${item.weight.toFixed(
+              2,
+            )})`,
         ),
       conflict: true,
     };
   }
 
-  const supplyRank: Record<
-    string,
-    number
-  > = {
-    Normal: 2,
-    High: 3,
-    Tight: 3,
-    Critical: 4,
-  };
-
-  const level =
-    uniqueLevels.reduce(
-      (
-        strongest,
-        current,
-      ) =>
-        (
-          supplyRank[current] ??
-          0
-        ) >
-        (
-          supplyRank[strongest] ??
-          0
-        )
-          ? current
-          : strongest,
-      uniqueLevels[0],
-    );
-
   return {
-    level:
-      level as SupplyLevel,
+    level,
     evidence:
-      signals.map(
-        (signal) =>
-          `Supply (${level}): ${signal.source} (${signal.url})`,
+      weightedSignals.map(
+        (item) =>
+          `${
+            kind === 'demand'
+              ? 'Demand'
+              : 'Supply'
+          } (${item.signal.level}): ${
+            item.signal.source
+          } (${
+            item.signal.url ||
+            'no url'
+          }; confidence ${
+            item.signal.confidence
+          }; weight ${item.weight.toFixed(
+            2,
+          )})`,
       ),
     conflict: false,
   };
@@ -2672,143 +2826,224 @@ export function supplyDemandEngine(
   const conflicts: string[] = [];
 
   const comparison =
-    isComparisonWorkflow(input);
+    isComparisonWorkflow(
+      input,
+    );
 
   const markets =
     comparison
       ? comparisonMarkets(input)
       : [];
 
-  /**
-   * ---------------------------------------------------------------------------
-   * Helper: classify research signals only for one specific market.
-   *
-   * A comparison market must have its own evidence. Evidence mentioning
-   * another country must not automatically become evidence for this market.
-   * ---------------------------------------------------------------------------
-   */
-  const signalsForMarket = (
-    market: string,
-    results: ResearchProviderResult[],
-  ): {
-    supplySignals: ResearchSignal[];
-    demandSignals: ResearchSignal[];
-  } => {
-    const supplySignals: ResearchSignal[] = [];
-    const demandSignals: ResearchSignal[] = [];
+  const buildMarketSignals =
+    (
+      market: string,
+      results: ResearchProviderResult[],
+      rows: RawMarketRow[],
+    ): {
+      supplySignals: ResearchSignal[];
+      demandSignals: ResearchSignal[];
+    } => {
+      const supplySignals:
+        ResearchSignal[] = [];
 
-    for (
-      const result of results
-    ) {
-      const text =
-        `${result.title} ${result.snippet}`;
+      const demandSignals:
+        ResearchSignal[] = [];
 
-      const locations =
-        locationsInText(text);
+      for (
+        const row of rows
+      ) {
+        const rowSupply =
+          mapSupply(row);
 
-      const marketLocation =
-        locations.find(
-          (location) =>
-            entityMatchesText(
-              market,
-              location.name,
-            ),
-        );
+        if (
+          rowSupply
+        ) {
+          supplySignals.push({
+            level:
+              rowSupply,
+            source:
+              row.source ??
+              'Stored data',
+            url: '',
+            confidence:
+              row.confidence,
+          });
+        }
 
-      if (!marketLocation) {
-        continue;
+        const rowDemand =
+          mapDemand(row);
+
+        if (
+          rowDemand
+        ) {
+          demandSignals.push({
+            level:
+              rowDemand,
+            source:
+              row.source ??
+              'Stored data',
+            url: '',
+            confidence:
+              row.confidence,
+          });
+        }
       }
 
-      /**
-       * Only inspect a local evidence window around the market mention.
-       * This reduces cross-country contamination in multi-country articles.
-       */
-      const start =
-        Math.max(
-          0,
-          marketLocation.index - 180,
-        );
+      for (
+        const result
+        of results
+      ) {
+        const text =
+          `${result.title} ${result.snippet}`;
 
-      const end =
-        Math.min(
-          text.length,
-          marketLocation.index + 320,
-        );
+        const locations =
+          locationsInText(
+            text,
+          );
 
-      const localText =
-        text.slice(
-          start,
-          end,
-        );
+        /*
+         * In comparison mode, the evidence must
+         * explicitly belong to this market.
+         */
+        if (
+          market
+        ) {
+          const marketLocation =
+            locations.find(
+              (location) =>
+                entityMatchesText(
+                  market,
+                  location.name,
+                ),
+            );
 
-      const supply =
-        classifySupplyFromText(
-          localText,
-        );
+          if (
+            !marketLocation
+          ) {
+            continue;
+          }
 
-      if (supply) {
-        supplySignals.push({
-          level: supply,
-          source:
-            result.title ||
-            result.url,
-          url:
-            result.url,
-          confidence:
-            supply === 'Normal'
-              ? 'MEDIUM'
-              : 'LOW',
-        });
+          const start =
+            Math.max(
+              0,
+              marketLocation.index -
+                180,
+            );
+
+          const end =
+            Math.min(
+              text.length,
+              marketLocation.index +
+                320,
+            );
+
+          const localText =
+            text.slice(
+              start,
+              end,
+            );
+
+          const supply =
+            classifySupplyFromText(
+              localText,
+            );
+
+          if (
+            supply
+          ) {
+            supplySignals.push({
+              level:
+                supply,
+              source:
+                result.title ||
+                result.url,
+              url:
+                result.url,
+              confidence:
+                supply === 'Normal'
+                  ? 'MEDIUM'
+                  : 'LOW',
+            });
+          }
+
+          const demand =
+            classifyDemandFromText(
+              localText,
+            );
+
+          if (
+            demand
+          ) {
+            demandSignals.push({
+              level:
+                demand,
+              source:
+                result.title ||
+                result.url,
+              url:
+                result.url,
+              confidence:
+                demand === 'Normal'
+                  ? 'MEDIUM'
+                  : 'LOW',
+            });
+          }
+        }
       }
 
-      const demand =
-        classifyDemandFromText(
-          localText,
-        );
-
-      if (demand) {
-        demandSignals.push({
-          level: demand,
-          source:
-            result.title ||
-            result.url,
-          url:
-            result.url,
-          confidence:
-            demand === 'Normal'
-              ? 'MEDIUM'
-              : 'LOW',
-        });
-      }
-    }
-
-    return {
-      supplySignals,
-      demandSignals,
+      return {
+        supplySignals,
+        demandSignals,
+      };
     };
-  };
 
-  /**
+  /*
    * ---------------------------------------------------------------------------
    * Comparison mode
-   * ---------------------------------------------------------------------------
-   *
-   * For comparisons we deliberately keep the final public engine contract
-   * backward-compatible (one supply + one demand value), but the evidence is
-   * resolved per market first.
-   *
-   * This prevents a statement about India from being copied into Pakistan,
-   * or vice versa.
    * ---------------------------------------------------------------------------
    */
   if (
     comparison &&
     markets.length >= 2
   ) {
-    const marketAssessments =
+    const assessments =
       markets.map(
         (market) => {
-          const scopedResults =
+          const commodity =
+            normalizeText(
+              input.commodity,
+            );
+
+          const marketRows =
+            input.marketRows.filter(
+              (row) => {
+                if (
+                  commodity &&
+                  normalizeText(
+                    row.commodity,
+                  ) !== commodity
+                ) {
+                  return false;
+                }
+
+                return [
+                  row.country,
+                  row.origin,
+                  row.city,
+                  row.market,
+                ].some(
+                  (field) =>
+                    field != null &&
+                    entityMatchesText(
+                      market,
+                      String(field),
+                    ),
+                );
+              },
+            );
+
+          const research =
             input.researchResults.filter(
               (result) =>
                 researchResultMatchesMarket(
@@ -2821,9 +3056,10 @@ export function supplyDemandEngine(
             supplySignals,
             demandSignals,
           } =
-            signalsForMarket(
+            buildMarketSignals(
               market,
-              scopedResults,
+              research,
+              marketRows,
             );
 
           const supplyResolved =
@@ -2856,12 +3092,9 @@ export function supplyDemandEngine(
         },
       );
 
-    /**
-     * Build market-specific evidence first.
-     */
     for (
       const assessment
-      of marketAssessments
+      of assessments
     ) {
       evidence.push(
         `${assessment.market} — Supply: ${assessment.supply}.`,
@@ -2896,20 +3129,14 @@ export function supplyDemandEngine(
       }
     }
 
-    /**
-     * We only publish a single aggregate supply/demand value when both
-     * comparison markets agree.
-     *
-     * This is conservative and avoids pretending one market represents both.
-     */
     const supplyLevels =
-      marketAssessments.map(
+      assessments.map(
         (assessment) =>
           assessment.supply,
       );
 
     const demandLevels =
-      marketAssessments.map(
+      assessments.map(
         (assessment) =>
           assessment.demand,
       );
@@ -2971,17 +3198,20 @@ export function supplyDemandEngine(
     };
   }
 
-  /**
+  /*
    * ---------------------------------------------------------------------------
-   * Standard non-comparison mode
+   * Standard mode
    * ---------------------------------------------------------------------------
+   *
+   * IMPORTANT:
+   * Do not let the first stored row decide the result.
+   * All relevant stored and research signals are calibrated together.
    */
+  const observedSupplySignals:
+    ResearchSignal[] = [];
 
-  let supply:
-    SupplyLevel = 'Unknown';
-
-  let demand:
-    DemandLevel = 'Unknown';
+  const observedDemandSignals:
+    ResearchSignal[] = [];
 
   const relevantRows =
     input.commodity
@@ -2989,8 +3219,12 @@ export function supplyDemandEngine(
           input,
         ).filter(
           (row) =>
-            row.commodity?.toLowerCase() ===
-            input.commodity!.toLowerCase(),
+            normalizeText(
+              row.commodity,
+            ) ===
+            normalizeText(
+              input.commodity,
+            ),
         )
       : scopeMarketRows(
           input,
@@ -2999,34 +3233,40 @@ export function supplyDemandEngine(
   for (
     const row of relevantRows
   ) {
+    const source =
+      row.source ??
+      'Stored data';
+
     const rowSupply =
       mapSupply(row);
 
     if (
-      rowSupply &&
-      supply === 'Unknown'
+      rowSupply
     ) {
-      supply =
-        rowSupply;
-
-      evidence.push(
-        `Supply (${row.country ?? row.market ?? 'market'}): ${rowSupply} — ${row.source ?? 'stored'}`,
-      );
+      observedSupplySignals.push({
+        level:
+          rowSupply,
+        source,
+        url: '',
+        confidence:
+          row.confidence,
+      });
     }
 
     const rowDemand =
       mapDemand(row);
 
     if (
-      rowDemand &&
-      demand === 'Unknown'
+      rowDemand
     ) {
-      demand =
-        rowDemand;
-
-      evidence.push(
-        `Demand (${row.country ?? row.market ?? 'market'}): ${rowDemand} — ${row.source ?? 'stored'}`,
-      );
+      observedDemandSignals.push({
+        level:
+          rowDemand,
+        source,
+        url: '',
+        confidence:
+          row.confidence,
+      });
     }
   }
 
@@ -3038,65 +3278,62 @@ export function supplyDemandEngine(
       input,
     );
 
-  if (
-    supply === 'Unknown'
-  ) {
-    const resolved =
-      resolveSignals(
-        supplySignals,
-        'supply',
-      );
-
-    supply =
-      resolved.level as SupplyLevel;
-
-    evidence.push(
-      ...resolved.evidence,
+  const calibratedSupply =
+    resolveSignals(
+      [
+        ...observedSupplySignals,
+        ...supplySignals,
+      ],
+      'supply',
     );
 
-    if (
-      resolved.conflict
-    ) {
-      conflicts.push(
-        ...resolved.evidence,
-      );
-    }
+  const calibratedDemand =
+    resolveSignals(
+      [
+        ...observedDemandSignals,
+        ...demandSignals,
+      ],
+      'demand',
+    );
+
+  evidence.push(
+    ...calibratedSupply.evidence,
+  );
+
+  evidence.push(
+    ...calibratedDemand.evidence,
+  );
+
+  if (
+    calibratedSupply.conflict
+  ) {
+    conflicts.push(
+      'Supply evidence contains materially conflicting signals.',
+    );
   }
 
   if (
-    demand === 'Unknown'
+    calibratedDemand.conflict
   ) {
-    const resolved =
-      resolveSignals(
-        demandSignals,
-        'demand',
-      );
-
-    demand =
-      resolved.level as DemandLevel;
-
-    evidence.push(
-      ...resolved.evidence,
+    conflicts.push(
+      'Demand evidence contains materially conflicting signals.',
     );
-
-    if (
-      resolved.conflict
-    ) {
-      conflicts.push(
-        ...resolved.evidence,
-      );
-    }
   }
 
   return {
-    supply,
-    demand,
+    supply:
+      calibratedSupply.level as SupplyLevel,
+
+    demand:
+      calibratedDemand.level as DemandLevel,
+
     evidence:
-      evidence.join('; ') ||
-      INSUFFICIENT,
+      evidence.length > 0
+        ? evidence.join('; ')
+        : INSUFFICIENT,
+
     conflicts,
   };
-}
 // -----------------------------------------------------------------------------
 // Demand intelligence
 // -----------------------------------------------------------------------------
@@ -5169,28 +5406,6 @@ export function buildFindings(
         ? `Next recorded ETA: ${operational.shipments.next_eta}.`
         : null,
     ].filter(Boolean);
-
-  const adjustedSupply =
-    operational.stock
-      .record_count > 0 &&
-    operational.stock
-      .available != null &&
-    operational.stock
-      .in_transit != null &&
-    operational.stock
-      .expected_incoming !=
-      null &&
-    (
-      operational.stock
-        .in_transit +
-      operational.stock
-        .expected_incoming
-    ) >
-      operational.stock
-        .available
-      ? 'Tight'
-      : supply;
-
   return {
     commodity,
 
@@ -5268,8 +5483,8 @@ export function buildFindings(
     landed_cost:
       landed,
 
-    supply:
-      adjustedSupply,
+   supply:
+  supply,
 
     demand,
 
