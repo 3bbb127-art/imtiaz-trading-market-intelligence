@@ -504,42 +504,40 @@ function scopeResearchResults(
         return false;
       }
 
-      const pattern =
-        new RegExp(
-          `\\b${escapeRegex(
-            commodityTerm,
-          )}\\b`,
-          'i',
-        );
-
-      return pattern.test(text);
+      return entityMatchesText(
+        commodityTerm,
+        text,
+      );
     };
 
+  /*
+   * Comparison mode:
+   * only return research attributable to one
+   * of the explicitly requested comparison markets.
+   */
   if (
     isComparisonWorkflow(input)
   ) {
     const markets =
       comparisonMarkets(input);
 
-    const marketScoped =
-      results.filter(
-        (result) =>
-          markets.some((market) =>
+    return results.filter(
+      (result) => {
+        if (
+          !matchesCommodity(result)
+        ) {
+          return false;
+        }
+
+        return markets.some(
+          (market) =>
             researchResultMatchesMarket(
               result,
               market,
             ),
-          ),
-      );
-
-    const commodityScoped =
-      marketScoped.filter(
-        matchesCommodity,
-      );
-
-    return commodityScoped.length > 0
-      ? commodityScoped
-      : marketScoped;
+        );
+      },
+    );
   }
 
   const scopeTerms = [
@@ -550,66 +548,45 @@ function scopeResearchResults(
     .map(normalizeText)
     .filter(Boolean);
 
+  /*
+   * No geographic scope:
+   * commodity-only research may remain global.
+   */
   if (
-    scopeTerms.length === 0 &&
-    !commodityTerm
+    scopeTerms.length === 0
   ) {
-    return results;
-  }
-
-  const scoped =
-    results.filter(
-      (result) => {
-        const text =
-          normalizeText(
-            `${result.title} ${result.snippet}`,
-          );
-
-        const matchesLocation =
-          scopeTerms.length === 0 ||
-          scopeTerms.some((term) =>
-            text.includes(term),
-          );
-
-        return (
-          matchesLocation &&
-          matchesCommodity(result)
-        );
-      },
+    return results.filter(
+      matchesCommodity,
     );
-
-  if (
-    scoped.length > 0
-  ) {
-    return scoped;
   }
 
-  if (
-    scopeTerms.length > 0
-  ) {
-    const locationScoped =
-      results.filter(
-        (result) => {
-          const text =
-            normalizeText(
-              `${result.title} ${result.snippet}`,
-            );
+  /*
+   * Geographic scope exists:
+   * only return research that explicitly mentions
+   * at least one requested location.
+   *
+   * IMPORTANT:
+   * never fall back to the complete research set.
+   */
+  return results.filter(
+    (result) => {
+      if (
+        !matchesCommodity(result)
+      ) {
+        return false;
+      }
 
-          return scopeTerms.some(
-            (term) =>
-              text.includes(term),
-          );
-        },
+      const text =
+        normalizeText(
+          `${result.title} ${result.snippet}`,
+        );
+
+      return scopeTerms.some(
+        (term) =>
+          text.includes(term),
       );
-
-    if (
-      locationScoped.length > 0
-    ) {
-      return locationScoped;
-    }
-  }
-
-  return results;
+    },
+  );
 }
 // -----------------------------------------------------------------------------
 // Research units / FX
