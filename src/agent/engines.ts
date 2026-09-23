@@ -770,23 +770,148 @@ function normalizeToUsdPerMtWithFx(
 function buildOperationalIntelligence(
   input: EngineInput,
 ) {
+  const commodity =
+    normalizeText(
+      input.commodity,
+    );
+
+  const city =
+    normalizeText(
+      input.city,
+    );
+
+  const origin =
+    normalizeText(
+      input.origin,
+    );
+
+  const destination =
+    normalizeText(
+      input.destination,
+    );
+
+  const hasCityScope =
+    Boolean(city);
+
+  const hasRouteScope =
+    Boolean(
+      origin ||
+      destination,
+    );
+
   const rows =
-    input.commodity
-      ? input.stockRows.filter(
-          (row) =>
-            row.commodity?.toLowerCase() ===
-            input.commodity!.toLowerCase(),
-        )
-      : input.stockRows;
+    input.stockRows.filter(
+      (row) => {
+        if (
+          commodity &&
+          normalizeText(
+            row.commodity,
+          ) !== commodity
+        ) {
+          return false;
+        }
+
+        /*
+         * StockRecord has no explicit country,
+         * origin, or destination fields.
+         *
+         * For city scope, only use stock when the
+         * warehouse explicitly contains that city.
+         *
+         * For route scope, stock cannot be safely
+         * attributed to the route, so exclude it.
+         *
+         * For global commodity scope, all matching
+         * commodity stock remains valid.
+         */
+        if (
+          hasCityScope
+        ) {
+          const warehouse =
+            normalizeText(
+              row.warehouse,
+            );
+
+          return (
+            Boolean(
+              warehouse,
+            ) &&
+            warehouse.includes(
+              city,
+            )
+          );
+        }
+
+        if (
+          hasRouteScope
+        ) {
+          return false;
+        }
+
+        return true;
+      },
+    );
 
   const shipments =
-    input.commodity
-      ? input.shipmentRows.filter(
-          (row) =>
-            row.commodity?.toLowerCase() ===
-            input.commodity!.toLowerCase(),
-        )
-      : input.shipmentRows;
+    input.shipmentRows.filter(
+      (shipment) => {
+        if (
+          commodity &&
+          normalizeText(
+            shipment.commodity,
+          ) !== commodity
+        ) {
+          return false;
+        }
+
+        /*
+         * City-only scope:
+         * only retain shipments that explicitly mention
+         * the requested city in origin or destination.
+         */
+        if (
+          hasCityScope &&
+          !hasRouteScope
+        ) {
+          return (
+            entityMatchesText(
+              city,
+              shipment.origin,
+            ) ||
+            entityMatchesText(
+              city,
+              shipment.destination,
+            )
+          );
+        }
+
+        /*
+         * Route scope:
+         * origin and destination must match when supplied.
+         */
+        if (
+          origin &&
+          !entityMatchesText(
+            origin,
+            shipment.origin,
+          )
+        ) {
+          return false;
+        }
+
+        if (
+          destination &&
+          !entityMatchesText(
+            destination,
+            shipment.destination,
+          )
+        ) {
+          return false;
+        }
+
+        return true;
+      },
+    );
 
   const sum = (
     field: keyof StockRecord,
@@ -1039,7 +1164,6 @@ function buildOperationalIntelligence(
 // -----------------------------------------------------------------------------
 // Freshness
 // -----------------------------------------------------------------------------
-
 function freshnessOf(
   dateStr?: string | null,
 ): Freshness {
