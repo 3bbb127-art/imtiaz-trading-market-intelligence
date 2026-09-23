@@ -3683,25 +3683,53 @@ export function demandEngine(
       ? trends[0]
       : 'UNKNOWN';
 
-  const confidence =
-    signals.length > 0
-      ? signals.reduce(
-          (
-            best,
-            signal,
-          ) =>
-            confidenceRank(
-              signal.confidence,
-            ) >
-            confidenceRank(
-              best,
-            )
-              ? signal.confidence
-              : best,
-          'LOW' as Confidence,
-        )
-      : 'LOW';
+  const highCount =
+    signals.filter(
+      (signal) =>
+        signal.confidence ===
+        'HIGH',
+    ).length;
 
+  const mediumCount =
+    signals.filter(
+      (signal) =>
+        signal.confidence ===
+        'MEDIUM',
+    ).length;
+
+  const lowCount =
+    signals.filter(
+      (signal) =>
+        signal.confidence ===
+        'LOW',
+    ).length;
+
+  let confidence:
+    Confidence = 'LOW';
+
+  if (
+    level !== 'Unknown' &&
+    signals.length >= 2
+  ) {
+    if (
+      highCount ===
+        signals.length &&
+      signals.length >= 2
+    ) {
+      confidence =
+        'HIGH';
+    } else if (
+      highCount +
+        mediumCount >=
+      Math.ceil(
+        signals.length *
+          0.6,
+      )
+    ) {
+      confidence =
+        'MEDIUM';
+    }
+  }
   let summary: string;
 
   if (
