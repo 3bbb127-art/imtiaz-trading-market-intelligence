@@ -3723,6 +3723,12 @@ export function demandEngine(
         'MEDIUM';
     }
   }
+  if (
+    level === 'Unknown'
+  ) {
+    confidence =
+      'LOW';
+  }
   let summary: string;
 
   if (
