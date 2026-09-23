@@ -568,7 +568,7 @@ function scopeResearchResults(
    * IMPORTANT:
    * never fall back to the complete research set.
    */
-  return results.filter(
+   return results.filter(
     (result) => {
       if (
         !matchesCommodity(result)
@@ -581,9 +581,18 @@ function scopeResearchResults(
           `${result.title} ${result.snippet}`,
         );
 
+      /*
+       * Use entity-aware matching instead of substring matching.
+       * This prevents geographic leakage from partial words while
+       * preserving known global aliases such as Russia/Russian,
+       * USA/United States, UAE, UK, etc.
+       */
       return scopeTerms.some(
         (term) =>
-          text.includes(term),
+          entityMatchesText(
+            term,
+            text,
+          ),
       );
     },
   );
