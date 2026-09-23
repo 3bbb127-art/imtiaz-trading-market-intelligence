@@ -6297,20 +6297,7 @@ export function evaluationEngine(
               ),
           )
         : scopedRows.length > 0;
-
-  let confidence:
-    Confidence = 'LOW';
-
-  if (
-    hasVerifiedLocalData &&
-    dataPoints >= 5 &&
-    independentSources >= 2 &&
-    findings.conflicts.length ===
-      0
-  ) {
-    confidence =
-      'HIGH';
-  } else if (
+  else if (
     dataPoints >= 2 &&
     findings.conflicts.length ===
       0
