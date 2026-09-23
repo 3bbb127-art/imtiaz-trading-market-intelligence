@@ -4467,54 +4467,58 @@ export function forecastEngine(
   }
 
   const cityOnlyWithoutLocalPrice =
-  Boolean(
-    input.city &&
-    !input.origin &&
-    !input.destination &&
-    points.length === 0,
-  );
+    Boolean(
+      input.city &&
+      !input.origin &&
+      !input.destination &&
+      points.length === 0,
+    );
 
-if (
-  !cityOnlyWithoutLocalPrice &&
-  (
-    supply === 'Tight' ||
-    supply === 'Critical'
-  )
-) {
-  priceDir =
-    priceDir === 'DOWN'
-      ? 'FLAT'
-      : 'UP';
+  if (
+    !cityOnlyWithoutLocalPrice &&
+    (
+      supply === 'Tight' ||
+      supply === 'Critical'
+    )
+  ) {
+    priceDirection =
+      priceDirection === 'DOWN'
+        ? 'FLAT'
+        : 'UP';
 
-  rationale.push(
-    'Tight supply pressures prices upward.',
-  );
-}
+    rationale.push(
+      'Tight supply pressures prices upward.',
+    );
+  }
 
-if (
-  !cityOnlyWithoutLocalPrice &&
-  (
-    demand === 'Strong' ||
-    demand === 'Surging'
-  )
-) {
-  priceDir =
-    priceDir === 'DOWN'
-      ? 'FLAT'
-      : 'UP';
+  if (
+    !cityOnlyWithoutLocalPrice &&
+    (
+      demand === 'Strong' ||
+      demand === 'Surging'
+    )
+  ) {
+    priceDirection =
+      priceDirection === 'DOWN'
+        ? 'FLAT'
+        : 'UP';
 
-  rationale.push(
-    'Strong demand supports prices.',
-  );
-}
+    rationale.push(
+      'Strong demand supports prices.',
+    );
+  }
 
-if (
-  cityOnlyWithoutLocalPrice
-) {
-  rationale.push(
-    'No verified local price series; price direction remains uncertain.',
-  );
-}
+  if (
+    cityOnlyWithoutLocalPrice
+  ) {
+    priceDirection =
+      'UNCERTAIN';
+
+    rationale.push(
+      'No verified local price series; price direction remains uncertain.',
+    );
+  }
+
   const marketRisk:
     Forecast['market_risk'] =
     sentiment === 'Negative' ||
