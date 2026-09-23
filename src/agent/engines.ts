@@ -3599,28 +3599,51 @@ function demandScore(
 function classifyDemandTrendFromText(
   text: string,
 ): 'UP' | 'DOWN' | 'FLAT' | null {
-  const value =
-    text.toLowerCase();
+  const sentences = text
+    .toLowerCase()
+    .split(/[.!?]+/)
+    .map(
+      (sentence) =>
+        sentence.trim(),
+    )
+    .filter(Boolean);
+
+  const demandSentences =
+    sentences.filter(
+      (sentence) =>
+        /\b(demand|consumption|buying activity|purchases|purchasing|import demand)\b/.test(
+          sentence,
+        ),
+    );
 
   if (
-    /\b(increas|rising|growing|surging|soaring|grew|boost|expanding|climbing)\b/.test(
-      value,
+    demandSentences.length === 0
+  ) {
+    return null;
+  }
+
+  const demandText =
+    demandSentences.join(' ');
+
+  if (
+    /\b(demand (?:increased|increasing|rising|grew|surging|soaring|expanded|expanding|strengthened|strengthening)|(?:rising|growing|increasing|surging|soaring) demand|higher demand|stronger demand|increased consumption|growing consumption|rising consumption|buying activity (?:increased|strengthened|grew|rising)|purchases (?:increased|grew|rising)|import demand (?:increased|rising|strengthened))\b/.test(
+      demandText,
     )
   ) {
     return 'UP';
   }
 
   if (
-    /\b(decreas|declin|falling|dropping|weaker|lower|slowing|shrinking|contracting|reduced)\b/.test(
-      value,
+    /\b(demand (?:decreased|declining|falling|dropped|dropping|weakened|weakening|slowing|shrinking|contracting|reduced)|(?:falling|declining|decreasing|weakening|slowing) demand|lower demand|weaker demand|reduced consumption|declining consumption|falling consumption|buying activity (?:decreased|weakened|fell|falling)|purchases (?:decreased|fell|falling)|import demand (?:decreased|falling|weakened))\b/.test(
+      demandText,
     )
   ) {
     return 'DOWN';
   }
 
   if (
-    /\b(stable|steady|flat|unchanged|moderate)\b/.test(
-      value,
+    /\b(demand (?:stable|steady|normal|unchanged|flat)|stable demand|steady demand|unchanged demand|flat demand|stable consumption|steady consumption|moderate demand)\b/.test(
+      demandText,
     )
   ) {
     return 'FLAT';
