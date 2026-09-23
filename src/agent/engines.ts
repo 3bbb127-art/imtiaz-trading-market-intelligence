@@ -2168,9 +2168,10 @@ function extractPricePointsFromResearch(
     )
   ) {
     const allowedRouteMarkets = [
-      input.origin,
-      input.destination,
-    ]
+  input.origin,
+  input.destination,
+  input.city,
+]
       .map(normalizeText)
       .filter(Boolean);
 
